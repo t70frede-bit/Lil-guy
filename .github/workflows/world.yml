@@ -1,0 +1,21 @@
+# Publishes lil guy's world page (world/) to lilguy.gokkehub.com.
+# Needs one repo secret: CLOUDFLARE_API_TOKEN (Edit Cloudflare Workers template, gokkehub.com only).
+name: Deploy world page
+# Manual for now (Actions tab, "Run workflow"): the page was first published through the
+# Cloudflare connector. Add the secret and switch on the push trigger to auto-deploy.
+on:
+  workflow_dispatch:
+concurrency: world-deploy
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy the Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          workingDirectory: world
+          wranglerVersion: "4.40.0"
+          command: deploy

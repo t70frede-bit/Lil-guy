@@ -91,6 +91,12 @@ case "$TG" in *:*) ;; *) echo "That Telegram token looks wrong (it should contai
 case "$AK" in sk-ant-*) ;; *) echo "That Anthropic key looks wrong (it should start with sk-ant-)."; false ;; esac
 sed -i "s|^TELEGRAM_BOT_TOKEN=.*|TELEGRAM_BOT_TOKEN=${TG}|; s|^ANTHROPIC_API_KEY=.*|ANTHROPIC_API_KEY=${AK}|" .env
 TELEGRAM_BOT_TOKEN="$TG"
+# Token for his world page (lilguy.gokkehub.com). Made once here, never shown.
+grep -q '^WORLD_URL=' .env || echo 'WORLD_URL=https://lilguy.gokkehub.com' >> .env
+if [ -z "$(env_val WORLD_TOKEN)" ]; then
+  WT="$(openssl rand -hex 32 2>/dev/null || head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+  if grep -q '^WORLD_TOKEN=' .env; then sed -i "s|^WORLD_TOKEN=.*|WORLD_TOKEN=${WT}|" .env; else echo "WORLD_TOKEN=${WT}" >> .env; fi
+fi
 chmod 600 .env
 mkdir -p data
 chown -R lilguy:lilguy "$DIR"
