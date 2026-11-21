@@ -1,5 +1,5 @@
 # Publishes lil guy's world page (world/) to lilguy.gokkehub.com.
-# Needs two repo secrets: CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID.
+# Needs one repo secret: CLOUDFLARE_API_TOKEN (Edit Cloudflare Workers template, gokkehub.com only).
 name: Deploy world page
 on:
   push:
@@ -17,7 +17,6 @@ jobs:
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: world
           wranglerVersion: "4.40.0"
           command: deploy
