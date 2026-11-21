@@ -74,13 +74,23 @@ npm run build
 npm test
 
 STEP="saving the keys"; report "Step 4/5: $STEP"
-if [ ! -f .env ]; then
-  cp .env.example .env
-  TG="${TELEGRAM_BOT_TOKEN:-}"; AK="${ANTHROPIC_API_KEY:-}"
-  if [ -z "$TG" ]; then echo "Paste the Telegram bot token from @BotFather (hidden), then press Enter:"; read -rs TG; echo; fi
-  if [ -z "$AK" ]; then echo "Paste the Anthropic API key (hidden), then press Enter:"; read -rs AK; echo; fi
-  sed -i "s|^TELEGRAM_BOT_TOKEN=.*|TELEGRAM_BOT_TOKEN=${TG}|; s|^ANTHROPIC_API_KEY=.*|ANTHROPIC_API_KEY=${AK}|" .env
+[ -f .env ] || cp .env.example .env
+clean() { printf '%s' "$1" | tr -d '[:space:]"'"'"; }
+env_val() { sed -n "s/^$1=//p" .env | head -n 1; }
+TG="$(clean "${TELEGRAM_BOT_TOKEN:-}")"; [ -n "$TG" ] || TG="$(clean "$(env_val TELEGRAM_BOT_TOKEN)")"
+AK="$(clean "${ANTHROPIC_API_KEY:-}")"; [ -n "$AK" ] || AK="$(clean "$(env_val ANTHROPIC_API_KEY)")"
+if [ -z "$TG" ]; then
+  [ -t 0 ] || { echo "No Telegram bot token was given."; false; }
+  echo "Paste the Telegram bot token from @BotFather (hidden), then press Enter:"; read -rs TG; echo; TG="$(clean "$TG")"
 fi
+if [ -z "$AK" ]; then
+  [ -t 0 ] || { echo "No Anthropic API key was given."; false; }
+  echo "Paste the Anthropic API key (hidden), then press Enter:"; read -rs AK; echo; AK="$(clean "$AK")"
+fi
+case "$TG" in *:*) ;; *) echo "That Telegram token looks wrong (it should contain a colon, like 123456:ABC...)."; false ;; esac
+case "$AK" in sk-ant-*) ;; *) echo "That Anthropic key looks wrong (it should start with sk-ant-)."; false ;; esac
+sed -i "s|^TELEGRAM_BOT_TOKEN=.*|TELEGRAM_BOT_TOKEN=${TG}|; s|^ANTHROPIC_API_KEY=.*|ANTHROPIC_API_KEY=${AK}|" .env
+TELEGRAM_BOT_TOKEN="$TG"
 chmod 600 .env
 mkdir -p data
 chown -R lilguy:lilguy "$DIR"
