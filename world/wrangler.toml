@@ -1,0 +1,17 @@
+# Lil guy's world: a Worker on lilguy.gokkehub.com with one KV namespace.
+# It only claims the lilguy subdomain and touches nothing else on the zone.
+name = "lil-guy-world"
+main = "worker.js"
+compatibility_date = "2026-11-01"
+workers_dev = false
+
+routes = [{ pattern = "lilguy.gokkehub.com", custom_domain = true }]
+
+[[kv_namespaces]]
+binding = "LILGUY"
+id = "c1a775e20c3d463cbd2ee48d990687f2"
+
+[[rules]]
+type = "Text"
+globs = ["**/*.html"]
+fallthrough = true

@@ -3,6 +3,7 @@
 import { ClaudeBrain, RuleBrain, type Brain } from "./brain.js";
 import { heardFromFrederik, resolveWish, step, type Outbox } from "./lilguy.js";
 import { describe, mood, shape } from "./needs.js";
+import { publish } from "./publish.js";
 import { load, note, remember, save, type State } from "./state.js";
 import { Telegram } from "./telegram.js";
 
@@ -10,6 +11,8 @@ const env = process.env;
 const DATA = env.DATA_FILE ?? "data/lilguy.json";
 const TICK_SECONDS = Number(env.TICK_SECONDS ?? 180);
 const MODEL = env.LILGUY_MODEL ?? "claude-haiku-5-5";
+const WORLD_URL = env.WORLD_URL || "https://lilguy.gokkehub.com";
+const WORLD_TOKEN = env.WORLD_TOKEN;
 const OWNER = env.TELEGRAM_OWNER_CHAT_ID ? Number(env.TELEGRAM_OWNER_CHAT_ID) : undefined;
 
 const brain: Brain = env.ANTHROPIC_API_KEY && env.DRY_RUN !== "1" ? new ClaudeBrain(MODEL) : new RuleBrain();
@@ -96,10 +99,11 @@ async function lifeLoop() {
   for (;;) {
     await step(s, brain, outbox);
     save(DATA, s);
+    await publish(s, WORLD_URL, WORLD_TOKEN, TICK_SECONDS);
     await new Promise(r => setTimeout(r, TICK_SECONDS * 1000));
   }
 }
 
-console.log(`Lil guy starting. Brain: ${brain instanceof ClaudeBrain ? MODEL : "rules (no AI)"}. Telegram: ${tg ? "on" : "off, printing to console"}. Tick: ${TICK_SECONDS}s.`);
+console.log(`Lil guy starting. Brain: ${brain instanceof ClaudeBrain ? MODEL : "rules (no AI)"}. Telegram: ${tg ? "on" : "off, printing to console"}. Tick: ${TICK_SECONDS}s. World page: ${WORLD_TOKEN ? WORLD_URL : "off"}.`);
 pollTelegram();
 lifeLoop();
