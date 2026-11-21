@@ -4,7 +4,7 @@ import { ClaudeBrain, RuleBrain, type Brain } from "./brain.js";
 import { ensureWorkshop, heardFromFrederik, resolveMore, resolveProject, resolveWish, step, type Outbox } from "./lilguy.js";
 import { kr } from "./workshop.js";
 import { describe, mood, shape } from "./needs.js";
-import { publish } from "./publish.js";
+import { publish, publishAssets } from "./publish.js";
 import { load, note, remember, save, type State } from "./state.js";
 import { Telegram } from "./telegram.js";
 
@@ -138,6 +138,7 @@ async function lifeLoop() {
     await step(s, brain, outbox);
     save(DATA, s);
     await publish(s, WORLD_URL, WORLD_TOKEN, TICK_SECONDS);
+    await publishAssets(WORLD_URL, WORLD_TOKEN);
     await new Promise(r => setTimeout(r, TICK_SECONDS * 1000));
   }
 }

@@ -1,6 +1,7 @@
 // Sends a public snapshot of lil guy to his world page (lilguy.gokkehub.com).
 // Only what the page needs: no chat with Frederik, no Telegram details.
 
+import { readFileSync } from "node:fs";
 import { mood, shape } from "./needs.js";
 import { findObject } from "./world.js";
 import type { State } from "./state.js";
@@ -71,5 +72,32 @@ export async function publish(s: State, url: string | undefined, token: string |
   } catch (e) {
     if (!failing) console.error(`Could not update the world page: ${(e as Error).message}`);
     failing = true;
+  }
+}
+
+let assetsSent = false;
+
+/**
+ * Send the page files from this copy of the repo to the world page, once after each start.
+ * That way `git pull && bash deploy/install.sh` on the server also updates lilguy.gokkehub.com.
+ */
+export async function publishAssets(url: string | undefined, token: string | undefined) {
+  if (assetsSent || !url || !token) return;
+  try {
+    const dir = new URL("../../world/", import.meta.url);
+    const files: Record<string, string> = {};
+    for (const name of ["index.html", "app.js", "world.json"]) files[name] = readFileSync(new URL(name, dir), "utf8");
+    const res = await fetch(`${url.replace(/\/$/, "")}/assets`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+      body: JSON.stringify(files),
+      signal: AbortSignal.timeout(20_000),
+    });
+    if (res.status === 404 || res.status === 405) { assetsSent = true; return; } // older world page without /assets
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    assetsSent = true;
+    console.log("World page files updated.");
+  } catch (e) {
+    console.error(`Could not update the world page files: ${(e as Error).message}`);
   }
 }
