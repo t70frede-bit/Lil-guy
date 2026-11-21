@@ -231,6 +231,90 @@
       mesh(box(0.9, 0.03, 0.5), toon(0xc76b5a), 0, 0.02, 1.2, g);
       return () => {};
     },
+    // ---- presents from the wishmaster: each one can really be used ----
+    blanket(g) {
+      // lives on the bed; folded at the foot, or spread out over the whole bed
+      const red = toon(0xc2473d), cream = toon(0xf6efe2);
+      const folded = new THREE.Group(); folded.position.set(0.55, 0.22, 0); g.add(folded);
+      [0, 1, 2].forEach(i => mesh(box(0.5, 0.05, 0.62), i % 2 ? cream : red, 0, 0.03 + i * 0.05, 0, folded));
+      const spread = new THREE.Group(); g.add(spread);
+      mesh(box(1.25, 0.05, 1.16), red, 0.18, 0.26, 0, spread);
+      [-0.3, 0.1, 0.5].forEach(x => mesh(box(0.08, 0.052, 1.17), cream, x + 0.18, 0.262, 0, spread));
+      return st => { folded.visible = st !== 'spread out'; spread.visible = st === 'spread out'; };
+    },
+    pebble(g) {
+      const p = mesh(new THREE.DodecahedronGeometry(0.16, 1), toon(0x8d8a86), 0, 0.12, 0, g); p.scale.set(1.3, 0.7, 1);
+      const shine = mesh(sph(0.04, 8, 6), basic(0xffffff), 0.08, 0.2, 0.1, g);
+      g.userData.act = (t, verb) => { if (/roll/.test(verb)) { p.position.x = Math.sin(t * 3) * 0.6; p.rotation.z = -t * 6; } else p.rotation.y = t * 2; };
+      g.userData.rest = () => { p.position.x = 0; };
+      return st => { const sh = st === 'shiny'; p.material.color.set(sh ? 0xb8c4d6 : 0x8d8a86); shine.visible = sh; };
+    },
+    button(g) {
+      const b = new THREE.Group(); b.position.y = 0.06; g.add(b);
+      const disc = mesh(cyl(0.28, 0.28, 0.07, 28), toon(0x6fb7e0), 0, 0, 0, b);
+      mesh(new THREE.TorusGeometry(0.22, 0.03, 8, 24), toon(0x3b7dd8), 0, 0.04, 0, b).rotation.x = Math.PI / 2;
+      [[-0.06, -0.06], [0.06, -0.06], [-0.06, 0.06], [0.06, 0.06]].forEach(([x, z]) => mesh(cyl(0.03, 0.03, 0.08, 8), toon(0x2a2433), x, 0.01, z, b));
+      g.userData.act = (t, verb) => { if (/spin/.test(verb)) { b.rotation.y = t * 14; b.rotation.x = 1.4; b.position.y = 0.3; } else { b.rotation.x = 1.2; b.position.y = 0.32; b.rotation.y = 0.4; } };
+      g.userData.rest = () => { b.rotation.set(0, 0, 0); b.position.y = 0.06; };
+      void disc; return () => {};
+    },
+    string(g) {
+      const segs = [];
+      for (let i = 0; i < 9; i++) { const s = mesh(cyl(0.025, 0.025, 0.16, 6), toon(0xc2473d), -0.6 + i * 0.15, 0.03, 0, g); s.rotation.z = Math.PI / 2; segs.push(s); }
+      const bow = new THREE.Group(); bow.position.set(0, 0.08, 0); g.add(bow);
+      [-1, 1].forEach(sd => { const l = mesh(new THREE.TorusGeometry(0.12, 0.03, 6, 16), toon(0xc2473d), sd * 0.12, 0, 0, bow); l.scale.set(1, 0.6, 1); });
+      g.userData.act = t => { segs.forEach((s, i) => { s.position.z = Math.sin(t * 9 + i * 0.8) * 0.12; s.position.y = 0.03 + Math.abs(Math.sin(t * 9 + i)) * 0.08; }); };
+      g.userData.rest = () => segs.forEach((s, i) => { s.position.z = Math.sin(i * 0.9) * 0.06; s.position.y = 0.03; });
+      g.userData.rest();
+      return st => { const tied = st === 'tied in a bow'; bow.visible = tied; segs.forEach(s => { s.visible = !tied; }); };
+    },
+    leaf(g) {
+      const l = new THREE.Group(); g.add(l);
+      const blade = mesh(sph(0.3, 16, 10), toon(0x5aa05a), 0, 0.02, 0, l); blade.scale.set(1, 0.08, 0.5);
+      mesh(box(0.56, 0.012, 0.02), toon(0x2f8f5b), 0, 0.05, 0, l);
+      g.userData.act = (t, verb) => { if (/fan/.test(verb)) { l.position.y = 0.3; l.rotation.x = 1.2 + Math.sin(t * 12) * 0.5; } else { l.position.y = 0.25; l.rotation.x = 1.0; l.rotation.z = Math.sin(t * 2) * 0.2; } };
+      g.userData.rest = () => { l.position.y = 0; l.rotation.set(0, 0.4, 0); };
+      g.userData.rest();
+      return () => {};
+    },
+    cap(g) {
+      const c = new THREE.Group(); g.add(c);
+      mesh(cyl(0.2, 0.2, 0.1, 20), toon(0xc2473d), 0, 0.05, 0, c);
+      mesh(cyl(0.16, 0.16, 0.012, 20), toon(0xf6efe2), 0, 0.106, 0, c);
+      g.userData.act = t => { c.rotation.y = t * 16; c.rotation.z = Math.sin(t * 8) * 0.15; };
+      g.userData.rest = () => { c.rotation.set(0, 0, 0); };
+      return st => { c.visible = st !== 'on his head'; };
+    },
+    cushion(g) {
+      const c = mesh(sph(0.42, 24, 16), toon(0x6a4fd8), 0, 0.22, 0, g); c.scale.set(1, 0.5, 1);
+      mesh(sph(0.06, 8, 6), toon(0xe0a548), 0, 0.43, 0, g);
+      g.userData.act = (t, verb) => { if (/punch/.test(verb)) { const k = Math.abs(Math.sin(t * 10)); c.scale.set(1 + k * 0.25, 0.5 - k * 0.2, 1 + k * 0.25); c.position.x = -k * 0.1; } else c.scale.set(1.2, 0.35, 1.2); };
+      g.userData.rest = () => { c.scale.set(1, 0.5, 1); c.position.x = 0; };
+      return () => {};
+    },
+    broom(g) {
+      const b = new THREE.Group(); b.position.set(0.3, 0, 0); g.add(b);
+      const stick = mesh(cyl(0.03, 0.03, 1.1, 8), toon(0x9a6b4a), 0, 0.75, 0, b); void stick;
+      mesh(cyl(0.08, 0.2, 0.28, 10), toon(0xe0c27b), 0, 0.14, 0, b);
+      b.rotation.z = 0.2;
+      const dust = [];
+      [[-1.4, -0.4], [-2.2, 0.3], [-0.9, 0.8], [-2.8, -0.6], [-1.8, -1.1]].forEach(([x, z]) => { const d = mesh(sph(0.09, 8, 6), new THREE.MeshToonMaterial({ color: 0xb5ada3, gradientMap: grad, transparent: true, opacity: 0.85 }), x, 0.06, z, g); d.scale.y = 0.6; dust.push(d); });
+      g.userData.act = t => { b.position.set(-0.2 + Math.sin(t * 7) * 0.35, 0, 0.2); b.rotation.z = Math.sin(t * 7) * 0.5; dust.forEach((d, i) => { d.scale.setScalar(Math.max(0.01, 1 - ((t * 0.6 + i * 0.13) % 1))); }); };
+      g.userData.rest = () => { b.position.set(0.3, 0, 0); b.rotation.z = 0.2; dust.forEach(d => { d.scale.set(1, 0.6, 1); }); };
+      return st => { dust.forEach(d => { d.visible = st === 'dusty floor'; }); };
+    },
+    giftbox(g) {
+      const paper = toon(0x3b7dd8), ribbon = toon(0xe0a548);
+      mesh(box(0.5, 0.4, 0.5), paper, 0, 0.2, 0, g);
+      mesh(box(0.52, 0.41, 0.08), ribbon, 0, 0.2, 0, g); mesh(box(0.08, 0.41, 0.52), ribbon, 0, 0.2, 0, g);
+      const lid = new THREE.Group(); lid.position.set(0, 0.42, 0); g.add(lid);
+      mesh(box(0.56, 0.08, 0.56), paper, 0, 0, 0, lid);
+      [-1, 1].forEach(sd => mesh(new THREE.TorusGeometry(0.08, 0.025, 6, 12), ribbon, sd * 0.08, 0.08, 0, lid));
+      const star = mesh(new THREE.OctahedronGeometry(0.14, 0), toon(0xffd166), 0, 0.5, 0, g);
+      g.userData.act = t => { star.position.y = 0.6 + Math.abs(Math.sin(t * 5)) * 0.3; star.rotation.y = t * 3; };
+      g.userData.rest = () => { star.position.y = 0.5; };
+      return st => { const open = st === 'unwrapped'; lid.position.set(open ? 0.45 : 0, open ? 0.05 : 0.42, open ? 0.2 : 0); lid.rotation.z = open ? 0.5 : 0; star.visible = open; };
+    },
     custom(g, def) {
       const tent = mesh(new THREE.ConeGeometry(1.4, 2, 6), toon(0xe0a548), 0, 1, -0.3, g); void tent;
       mesh(sph(0.12, 10, 8), toon(0xc2473d), 0, 2.05, -0.3, g);
@@ -263,6 +347,36 @@
       const outline = mesh(new THREE.RingGeometry(1.75, 1.85, 4), basic(0xf6efe2), 0, 0.03, 0, g); outline.rotation.x = -Math.PI / 2; outline.rotation.z = Math.PI / 4;
       if (i < 2) sign('Room for a wish', g, 0, 0.8, 1.3);
       plotMarkers.push(g);
+    });
+  }
+
+  // Presents live inside his house: the wishmaster's free things have their own place and model,
+  // anything else Frederik gave him arrives as a gift box.
+  function giftId(item) {
+    const g = (world.gifts || []).find(x => x.item === item);
+    if (g) return g.id;
+    return 'gift-' + item.toLowerCase().replace(/[^a-z0-9' -]/g, ' ').trim().replace(/^(a|an|some|the)\s+/, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 30);
+  }
+  function syncGifts() {
+    let spare = 0;
+    (S.items || []).forEach(item => {
+      const id = giftId(item);
+      if (things[id]) return;
+      const def = (world.gifts || []).find(x => x.item === item);
+      let o, pos, spot;
+      if (def) { o = Object.assign({}, def, { area: 'home' }); pos = def.pos; spot = def.spot; }
+      else {
+        const cg = world.customGift || { kind: 'giftbox', desc: '', state: 'wrapped', actions: [] };
+        o = { id, name: item.replace(/^(a|an|some|the)\s+/i, ''), kind: cg.kind, state: cg.state, desc: cg.desc, actions: cg.actions, area: 'home' };
+        const spots = world.giftSpots || [[0, 2]];
+        while (Object.values(things).some(th => th.giftSpot === spare)) spare++;
+        pos = spots[spare % spots.length]; o.giftSpot = spare;
+      }
+      if (!spot) spot = [pos[0] + (pos[0] > 0 ? -0.7 : 0.7), pos[1] + (pos[1] > 0 ? -0.5 : 0.5)];
+      const th = addThing(o, pos[0], pos[1], spot);
+      th.group.position.y = o.y || 0;
+      if (o.giftSpot !== undefined) th.giftSpot = o.giftSpot;
+      if (!reduce && !first) th.popIn = 0;
     });
   }
 
@@ -314,6 +428,11 @@
     guy.add(g); return g;
   }
   const legL = leg(), legR = leg();
+  // his bottle cap hat, worn on top when he puts it on
+  const hat = new THREE.Group(); guy.add(hat);
+  mesh(cyl(0.5, 0.5, 0.24, 24), toon(0xc2473d), 0, 0.12, 0, hat);
+  mesh(cyl(0.4, 0.4, 0.02, 24), toon(0xf6efe2), 0, 0.25, 0, hat);
+  hat.rotation.z = -0.25; hat.visible = false;
   const zzz = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.6), new THREE.MeshBasicMaterial({ map: labelTexture('Zzz', 'rgba(0,0,0,0)', '#6a4fd8'), transparent: true, depthWrite: false }));
   zzz.position.set(0.9, 2.2, 0); holder.add(zzz);
 
@@ -346,6 +465,7 @@
     const ink = '#2a2433', eyeY = 220, gap = 92, lx = 256 - gap + F.look * 18, rx = 256 + gap + F.look * 18;
     const open = clamp(F.open * (1 - F.blink));
     for (const ex of [lx, rx]) {
+      if (open < 0.2) { fx.strokeStyle = ink; fx.lineWidth = 13; fx.lineCap = 'round'; fx.beginPath(); fx.arc(ex, eyeY - 8, 28 * F.size, 0.15 * Math.PI, 0.85 * Math.PI); fx.stroke(); continue; }
       fx.fillStyle = ink; fx.beginPath(); fx.ellipse(ex, eyeY, 30 * F.size, Math.max(4, 44 * F.size * open), 0, 0, Math.PI * 2); fx.fill();
       if (open > 0.35) { fx.fillStyle = '#fff'; fx.beginPath(); fx.arc(ex + 10, eyeY - 14 * F.size, 9 * F.size, 0, Math.PI * 2); fx.fill(); }
     }
@@ -366,13 +486,33 @@
   // He walks along waypoints; going in or out goes through the door.
   const DOOR_IN = [3.6, 0.6], DOOR_OUT = [5.6, 0.6];
   const inside = p => p[0] < HOUSE.x1 && p[0] > HOUSE.x0 && p[1] > HOUSE.z0 && p[1] < HOUSE.z1;
-  let gx = 0, gz = 0.4, route = [], facing = 0, actUntil = 0, actTarget = null;
+  let gx = 0, gz = 0.4, route = [], facing = 0, actUntil = 0, actPending = 0, actTarget = null, actVerb = '';
+  const LIE = /^(nap|snuggle)/;
+  function startAct(object, verb, line) {
+    Object.values(things).forEach(th => { if (th.group.userData.rest) th.group.userData.rest(); });
+    actTarget = object; actVerb = verb || ''; actUntil = 0; actPending = LIE.test(actVerb) ? 12000 : 5000; // starts once he has walked there
+    if (line) toast(line);
+  }
   function walkTo(p) {
     const from = [gx, gz];
     route = [];
     if (inside(from) && !inside(p)) route.push(DOOR_IN, DOOR_OUT);
     else if (!inside(from) && inside(p)) route.push(DOOR_OUT, DOOR_IN);
     route.push(p);
+  }
+  // The blanket over him when he lies in bed: his red present if he has it, otherwise the bed's own.
+  let coverMesh = null;
+  function coverFor() {
+    if (!things.bed) return null;
+    if (!coverMesh) {
+      coverMesh = mesh(new THREE.SphereGeometry(1, 28, 14, 0, Math.PI * 2, 0, Math.PI / 2), toon(0xf0c27b), 0.28, 0.2, 0, things.bed.group);
+      coverMesh.scale.set(0.62, 0.42, 0.6);
+      coverMesh.userData.objId = 'bed';
+    }
+    const gift = (S.items || []).includes('a warm blanket');
+    coverMesh.material.color.set(gift ? 0xc2473d : 0xf0c27b);
+    if (gift) coverMesh.userData.objId = 'blanket';
+    return coverMesh;
   }
   function spotOf(id) { const t = things[id]; return t ? t.spot : SPOT[id] || null; }
 
@@ -390,7 +530,7 @@
     if (!d || !d.needs) return;
     S.needs = d.needs; S.sleeping = !!d.sleeping; S.mood = d.mood || 'content';
     S.objects = d.objects || {}; S.built = d.built || []; S.uses = d.uses || {}; S.items = d.items || []; S.wishes = d.wishes || [];
-    if (world) syncBuilt();
+    if (world) { syncBuilt(); syncGifts(); }
     Object.values(things).forEach(t => t.update(S.objects[t.def.id] || t.def.state));
 
     const place = S.sleeping ? 'bed' : d.place;
@@ -400,7 +540,7 @@
     S.place = place;
 
     if (d.last && d.last.at !== lastActAt) {
-      if (!first) { actTarget = d.last.object; actUntil = performance.now() + 4000; toast(d.last.line); }
+      if (!first) startAct(d.last.object, d.last.verb, d.last.line);
       lastActAt = d.last.at;
     }
     first = false;
@@ -570,24 +710,41 @@
     body.rotation.x = roll;
 
     // doing something with a thing: face it, hop and wave
+    if (!moving && actPending) { actUntil = now + actPending; actPending = 0; }
     const acting = now < actUntil && !moving;
     let faceTo = moving ? facing : 0;
     if (acting && things[actTarget]) { const p = things[actTarget].group.position; faceTo = Math.atan2(p.x - gx, p.z - gz) * 0.6; }
     holder.rotation.y = lerp(holder.rotation.y, faceTo, 0.08);
     if (acting && actTarget === 'ball' && things.ball) { const b = things.ball.group.userData.ball; b.rotation.x += dt * 4; }
+    const tgtThing = things[actTarget];
+    if (acting && tgtThing && tgtThing.group.userData.act) tgtThing.group.userData.act(t, actVerb, dt);
+    if (!acting && !actPending && tgtThing && tgtThing.group.userData.rest) { tgtThing.group.userData.rest(); actTarget = null; }
+    // lying in bed: asleep, napping or snuggled under the blanket, tucked in up to his chin
+    const lying = !!things.bed && (S.sleeping || (acting && LIE.test(actVerb)));
+    const cover = coverFor();
+    if (cover) cover.visible = lying;
+    if (things.blanket) things.blanket.group.visible = !lying;
 
     const radius = W.s + W.c * 0.84 + W.k;
-    const hop = (!moving && !reduce && !S.sleeping && (acting || m.curious > 0.3)) ? Math.abs(Math.sin(t * (acting ? 8 : 5))) * (acting ? 0.25 : 0.08) : 0;
+    const hop = (!moving && !reduce && !S.sleeping && !(acting && LIE.test(actVerb)) && (acting || m.curious > 0.3)) ? Math.abs(Math.sin(t * (acting ? 8 : 5))) * (acting ? 0.25 : 0.08) : 0;
     const shiver = m.feisty > 0.4 && !reduce ? Math.sin(t * 40) * 0.015 * m.feisty : 0;
     const legH = 0.42 * (moving && W.c < 0.3 ? 0.15 : 1);
-    const bedLift = S.sleeping && S.place === 'bed' ? 0.55 : 0;
-    guy.position.y = lerp(guy.position.y, radius * (1 - W.d * 0.12) + legH + hop + (S.sleeping ? Math.sin(t * 1.2) * 0.03 : 0), 0.15);
+    guy.position.y = lerp(guy.position.y, lying ? radius * 0.92 + Math.sin(t * 1.2) * 0.04 : radius * (1 - W.d * 0.12) + legH + hop, 0.15);
     guy.position.x = shiver;
-    holder.position.set(gx, bedLift, gz);
+    guy.rotation.x = lerp(guy.rotation.x, lying ? -0.8 : 0, 0.08);
+    guy.rotation.z = lerp(guy.rotation.z, lying ? 0.35 : 0, 0.08);
+    if (lying) {
+      const bp = things.bed.group.position;
+      gx = lerp(gx, bp.x - 0.3, 0.1); gz = lerp(gz, bp.z, 0.1); route = [];
+      holder.rotation.y = lerp(holder.rotation.y, 0, 0.1);
+    }
+    holder.position.set(gx, lerp(holder.position.y, lying ? 0.12 : 0, 0.1), gz);
+    hat.visible = !lying && S.objects.cap === 'on his head' && (S.items || []).includes('a bottle cap');
+    hat.position.y = radius * 0.92;
     shadow.scale.setScalar(radius * (1 - hop));
     legL.position.set(-0.32 * radius, -radius * (1 - W.d * 0.12) + 0.05, 0); legR.position.set(0.32 * radius, legL.position.y, 0);
-    legL.scale.y = legR.scale.y = lerp(legL.scale.y, moving && W.c < 0.3 ? 0.15 : 1, 0.15);
-    const armTuck = moving && W.c < 0.3 ? 0.2 : (m.lonely > 0.5 ? 0.6 : 1);
+    legL.scale.y = legR.scale.y = lerp(legL.scale.y, lying ? 0.01 : moving && W.c < 0.3 ? 0.15 : 1, 0.15);
+    const armTuck = lying ? 0.01 : moving && W.c < 0.3 ? 0.2 : (m.lonely > 0.5 ? 0.6 : 1);
     [armL, armR].forEach(a => {
       const s = a.userData.side; a.position.set(s * radius * 0.96, 0.05, 0);
       let ang = 0.35;
@@ -595,13 +752,14 @@
       if (m.feisty > 0.4) ang = 2.3 + Math.sin(t * 14 + s) * 0.25;
       if (m.lonely > 0.5) ang = 0.1;
       if (m.sleepy > 0.5) ang = 0.05;
-      if (acting) ang = 2.4 + Math.sin(t * 10 + s * 1.5) * 0.4;
+      if (acting) ang = /punch/.test(actVerb) ? 1.5 + Math.abs(Math.sin(t * 10 + s * 1.6)) * 0.4 : 2.4 + Math.sin(t * 10 + s * 1.5) * 0.4;
       a.rotation.z = lerp(a.rotation.z, s * ang, 0.12);
       a.scale.setScalar(lerp(a.scale.x, armTuck, 0.1));
     });
+    shadow.visible = !lying;
     zzz.visible = S.sleeping; if (S.sleeping) { zzz.position.y = 2.4 + Math.sin(t) * 0.15; zzz.quaternion.copy(camera.quaternion); }
 
-    face.position.set(0, 0.06 - W.d * 0.1, radius + 0.03);
+    face.position.set(0, 0.06 - W.d * 0.1, radius * (1 + W.d * 0.1) + 0.04);
     blinkTimer -= dt; if (blinkTimer < 0) { F.blink = 1; blinkTimer = 2 + Math.random() * 3; }
     F.blink = Math.max(0, F.blink - dt * 8);
     const tgt = { open: 1 - m.sleepy * 0.9, size: 1 + m.curious * 0.25 - m.lonely * 0.1 + (acting ? 0.15 : 0), brow: m.lonely * 0.6 - m.feisty,
@@ -653,5 +811,6 @@
     document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
     requestAnimationFrame(frame);
   }
+  window.lilguyAct = (object, verb) => startAct(object, verb, '');
   start();
 })();
