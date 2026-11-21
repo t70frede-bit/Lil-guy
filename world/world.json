@@ -99,6 +99,52 @@
             { "verb": "knock", "effect": { "company": 0.04, "curiosity": -0.04 }, "line": "Knocked on the friend's door. Nobody home yet." },
             { "verb": "tidy the welcome mat", "effect": { "fulfilled": 0.06 }, "line": "Tidied the welcome mat for whoever moves in." } ] } ] }
   ],
+  "gifts": [
+    { "item": "a warm blanket", "id": "blanket", "name": "warm blanket", "kind": "blanket", "pos": [-2.8, -1.2], "spot": [-2.0, -0.6], "state": "folded", "desc": "A thick knitted blanket from the wishmaster. It lives on his bed.",
+      "actions": [
+        { "verb": "snuggle under it", "effect": { "energy": 0.1, "company": 0.03 }, "line": "Snuggled up in bed under the warm blanket." },
+        { "verb": "spread it over the bed", "from": "folded", "to": "spread out", "effect": { "fulfilled": 0.04 }, "line": "Spread the warm blanket over the bed." },
+        { "verb": "fold it up", "from": "spread out", "to": "folded", "effect": { "fulfilled": 0.04 }, "line": "Folded the warm blanket into a neat square." } ] },
+    { "item": "a pebble", "id": "pebble", "name": "pebble", "kind": "pebble", "pos": [-3.6, 2.3], "state": "dull", "desc": "A small grey pebble. It might be shiny underneath.",
+      "actions": [
+        { "verb": "polish it", "from": "dull", "to": "shiny", "effect": { "fulfilled": 0.06, "curiosity": -0.05 }, "line": "Polished the pebble until it shone." },
+        { "verb": "roll it across the floor", "effect": { "curiosity": -0.08, "feisty": -0.03 }, "line": "Rolled the pebble across the floor and chased it." } ] },
+    { "item": "a shiny button", "id": "button", "name": "shiny button", "kind": "button", "pos": [1.0, 2.4], "state": "lying flat", "desc": "A big shiny button. He can see himself in it.",
+      "actions": [
+        { "verb": "spin it", "effect": { "curiosity": -0.08 }, "line": "Spun the shiny button like a top. Wheee." },
+        { "verb": "look at himself in it", "effect": { "company": 0.03, "curiosity": -0.03 }, "line": "Looked at himself in the shiny button. Hello, me." } ] },
+    { "item": "a piece of string", "id": "string", "name": "piece of string", "kind": "string", "pos": [2.7, 1.9], "state": "loose", "desc": "A wiggly piece of red string.",
+      "actions": [
+        { "verb": "play with it", "effect": { "feisty": -0.06, "curiosity": -0.05 }, "line": "Played with the string. It wiggled back." },
+        { "verb": "tie it in a bow", "from": "loose", "to": "tied in a bow", "effect": { "fulfilled": 0.06 }, "line": "Tied the string into a bow. Fancy!" },
+        { "verb": "untie it", "from": "tied in a bow", "to": "loose", "effect": { "curiosity": -0.03 }, "line": "Untied the bow again." } ] },
+    { "item": "a leaf", "id": "leaf", "name": "leaf", "kind": "leaf", "pos": [2.35, -2.62], "y": 1.07, "spot": [2.3, -1.8], "state": "on the windowsill", "desc": "A big green leaf, drying on the windowsill.",
+      "actions": [
+        { "verb": "look at the lines on it", "effect": { "curiosity": -0.08 }, "line": "Looked at all the tiny lines on the leaf." },
+        { "verb": "wave it like a fan", "effect": { "feisty": -0.05, "energy": 0.02 }, "line": "Fanned himself with the leaf. Breezy." } ] },
+    { "item": "a bottle cap", "id": "cap", "name": "bottle cap", "kind": "cap", "pos": [-0.4, 2.5], "state": "on the floor", "desc": "A red bottle cap. Just his size.",
+      "actions": [
+        { "verb": "spin it", "from": "on the floor", "effect": { "curiosity": -0.08 }, "line": "Spun the bottle cap on the floor." },
+        { "verb": "wear it as a hat", "from": "on the floor", "to": "on his head", "effect": { "fulfilled": 0.08 }, "line": "Put the bottle cap on as a hat. Very dashing." },
+        { "verb": "take it off", "from": "on his head", "to": "on the floor", "line": "Took off his bottle cap hat." } ] },
+    { "item": "a cushion to punch", "id": "cushion", "name": "punching cushion", "kind": "cushion", "pos": [-3.7, 1.0], "state": "puffy", "desc": "A round cushion that does not mind being punched.",
+      "actions": [
+        { "verb": "punch it", "effect": { "feisty": -0.25, "energy": -0.03 }, "line": "Punched the cushion. Pow! Pow! Better." },
+        { "verb": "sit on it", "effect": { "energy": 0.04, "feisty": -0.05 }, "line": "Sat on the cushion. Squishy." } ] },
+    { "item": "a little job to do", "id": "broom", "name": "little broom", "kind": "broom", "pos": [3.7, 2.5], "state": "dusty floor", "desc": "A tiny broom. Somebody has to keep the house tidy.",
+      "actions": [
+        { "verb": "sweep the floor", "from": "dusty floor", "to": "clean floor", "effect": { "fulfilled": 0.15, "curiosity": -0.05 }, "line": "Swept the whole floor with his little broom. Spotless!" },
+        { "verb": "look for more dust", "from": "clean floor", "to": "dusty floor", "effect": { "curiosity": -0.04 }, "line": "Found some new dust bunnies. A job for later." } ] }
+  ],
+  "giftSpots": [[-1.6, 2.6], [0.4, 2.0], [2.0, 2.6], [-2.6, 2.6], [3.6, -0.8], [-3.9, -2.4]],
+  "customGift": {
+    "kind": "giftbox",
+    "desc": "Something Frederik gave him, still a bit of a mystery.",
+    "state": "wrapped",
+    "actions": [
+      { "verb": "unwrap it", "from": "wrapped", "to": "unwrapped", "effect": { "fulfilled": 0.1, "curiosity": -0.1 }, "line": "Unwrapped his present from Frederik!" },
+      { "verb": "play with it", "from": "unwrapped", "effect": { "fulfilled": 0.06, "curiosity": -0.06 }, "line": "Played with his present from Frederik." },
+      { "verb": "show it off", "from": "unwrapped", "effect": { "company": 0.03 }, "line": "Showed his present to the stone. It was impressed." } ] },
   "custom": {
     "kind": "custom",
     "desc": "Something Frederik said yes to. It is still being figured out.",
