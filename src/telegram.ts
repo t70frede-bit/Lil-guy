@@ -9,7 +9,7 @@ export interface Update {
 
 export class Telegram {
   private base: string;
-  constructor(token: string) { this.base = `https://api.telegram.org/bot${token}`; }
+  constructor(token: string) { this.base = `${process.env.TELEGRAM_API_BASE ?? "https://api.telegram.org"}/bot${token}`; }
 
   private async call<T>(method: string, body: Record<string, unknown>): Promise<T> {
     const res = await fetch(`${this.base}/${method}`, {

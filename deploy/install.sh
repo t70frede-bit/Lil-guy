@@ -9,26 +9,45 @@ set -euo pipefail
 export HOME="${HOME:-/root}"
 
 REPO="t70frede-bit/Lil-guy"
-DIR=/opt/lil-guy
+DIR="${LILGUY_DIR:-/opt/lil-guy}"
+LOG=/var/log/lilguy-install.log
 
 if [ "$(id -u)" -ne 0 ]; then echo "Please run as root."; exit 1; fi
 
-echo "== 1/5 Installing git and Node.js =="
+# --- Progress reports on Telegram once the bot token is known ---
+STEP="starting"
+tg_token() { [ -n "${TELEGRAM_BOT_TOKEN:-}" ] && { echo "$TELEGRAM_BOT_TOKEN"; return; }; [ -f "$DIR/.env" ] && grep -E '^TELEGRAM_BOT_TOKEN=' "$DIR/.env" | cut -d= -f2-; }
+report() {
+  echo "[$(date -u +%H:%M:%S)] $1"
+  local t; t="$(tg_token || true)"; [ -z "$t" ] && return 0
+  # Send to whoever has written to the bot (Frederik's /start). Does not consume the bot's messages.
+  local ids; ids="$(curl -s "https://api.telegram.org/bot$t/getUpdates" | grep -oE '"chat":\{"id":-?[0-9]+' | grep -oE -- '-?[0-9]+$' | sort -u || true)"
+  for id in $ids; do curl -s -o /dev/null "https://api.telegram.org/bot$t/sendMessage" --data-urlencode "chat_id=$id" --data-urlencode "text=Installer: $1" || true; done
+}
+on_error() {
+  local tail_lines=""; [ -f "$LOG" ] && tail_lines="$(tail -n 12 "$LOG" | grep -v -e "${TELEGRAM_BOT_TOKEN:-@@}" -e "${ANTHROPIC_API_KEY:-@@}" -e "${GH_TOKEN:-@@}" || true)"
+  report "FAILED during: $STEP. Last lines:
+$tail_lines"
+}
+trap on_error ERR
+APT="apt-get -o DPkg::Lock::Timeout=600"
+
+STEP="installing git and Node.js"; report "Step 1/5: $STEP"
 export DEBIAN_FRONTEND=noninteractive
-apt-get update -y
-apt-get install -y git curl ca-certificates
+$APT update -y
+$APT install -y git curl ca-certificates
 node_ok() { command -v node >/dev/null && [ "$(node -p 'process.versions.node.split(".")[0]')" -ge 22 ]; }
-if ! node_ok; then apt-get install -y nodejs npm || true; fi
+if ! node_ok; then $APT install -y nodejs npm || true; fi
 if ! node_ok; then
-  apt-get remove -y nodejs npm || true
+  $APT remove -y nodejs npm || true
   curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
-  apt-get install -y nodejs
+  $APT install -y nodejs
 fi
 node_ok || { echo "Could not install Node.js 22 or newer."; exit 1; }
-command -v npm >/dev/null || apt-get install -y npm
+command -v npm >/dev/null || $APT install -y npm
 echo "Node $(node --version)"
 
-echo "== 2/5 Getting lil guy's code =="
+STEP="getting lil guy's code"; report "Step 2/5: $STEP (Node $(node --version))"
 id lilguy >/dev/null 2>&1 || useradd --system --create-home --shell /usr/sbin/nologin lilguy
 export GIT_TERMINAL_PROMPT=0
 git config --global --add safe.directory "$DIR"
@@ -49,12 +68,12 @@ else
 fi
 cd "$DIR"
 
-echo "== 3/5 Building =="
+STEP="building and testing"; report "Step 3/5: $STEP"
 npm ci
 npm run build
 npm test
 
-echo "== 4/5 Keys =="
+STEP="saving the keys"; report "Step 4/5: $STEP"
 if [ ! -f .env ]; then
   cp .env.example .env
   TG="${TELEGRAM_BOT_TOKEN:-}"; AK="${ANTHROPIC_API_KEY:-}"
@@ -66,12 +85,14 @@ chmod 600 .env
 mkdir -p data
 chown -R lilguy:lilguy "$DIR"
 
-echo "== 5/5 Starting lil guy =="
+STEP="starting lil guy"; report "Step 5/5: $STEP"
 sed "s|/usr/bin/node|$(command -v node)|" deploy/lilguy.service > /etc/systemd/system/lilguy.service
 systemctl daemon-reload
 systemctl enable --now lilguy
-sleep 3
-systemctl --no-pager status lilguy | head -5
-echo
-echo "Done. Now open Telegram and send /start to your bot."
+sleep 5
+if systemctl is-active --quiet lilguy; then
+  report "Done. Lil guy is running. Send /start to the bot if you have not yet."
+else
+  STEP="lil guy did not stay running"; on_error; exit 1
+fi
 echo "Watch his diary with: journalctl -u lilguy -f"

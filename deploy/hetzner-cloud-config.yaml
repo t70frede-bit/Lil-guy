@@ -1,8 +1,7 @@
 #cloud-config
 # Paste this whole file into Hetzner's "Cloud config" box when creating the server.
 # Replace the two PASTE_..._HERE values with your own keys in the Hetzner form (never in a chat).
-# If the GitHub repo is private, also put a read-only GitHub token after GH_TOKEN=.
-# The server installs and starts lil guy by itself; after about 5 minutes, send /start to your bot.
+# Progress arrives as Telegram messages once you have sent /start to the bot. Log: /var/log/lilguy-install.log
 write_files:
   - path: /root/lilguy-secrets.env
     permissions: "0600"
@@ -16,9 +15,9 @@ runcmd:
     - |
       set -a; . /root/lilguy-secrets.env; set +a
       export HOME=/root DEBIAN_FRONTEND=noninteractive
-      apt-get update -y && apt-get install -y git
       REPO=github.com/t70frede-bit/Lil-guy
       if [ -n "$GH_TOKEN" ]; then URL="https://x-access-token:$GH_TOKEN@$REPO"; else URL="https://$REPO"; fi
-      git clone "$URL" /opt/lil-guy && git -C /opt/lil-guy remote set-url origin "https://$REPO"
+      for i in 1 2 3 4 5; do git clone "$URL" /opt/lil-guy && break; sleep 10; done
+      git -C /opt/lil-guy remote set-url origin "https://$REPO"
       bash /opt/lil-guy/deploy/install.sh > /var/log/lilguy-install.log 2>&1
       rm -f /root/lilguy-secrets.env /var/lib/cloud/instance/user-data.txt*
