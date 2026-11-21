@@ -88,3 +88,37 @@ test("rule-based life with a workshop runs and makes projects", async () => {
   assert.ok(s.projects.length >= 1);
   for (const v of Object.values(s.needs)) assert.ok(v >= 0 && v <= 1);
 });
+
+test("after a not now he waits before proposing again", async () => {
+  const s = freshState(); ensureWorkshop(s); s.needs.company = 0.1;
+  const log: string[] = [];
+  await doMove(s, friendMove, outbox(log), new RuleBrain());
+  resolveProject(s, s.projects[0].id, false);
+  await doMove(s, friendMove, outbox(log), new RuleBrain());
+  assert.equal(s.projects.length, 1);
+  s.projects[0].decidedAt = new Date(Date.now() - 7 * 3600_000).toISOString();
+  await doMove(s, friendMove, outbox(log), new RuleBrain());
+  assert.equal(s.projects.length, 2);
+});
+
+test("a step the brain says would go over the budget stops the project", async () => {
+  const s = freshState(); ensureWorkshop(s); s.needs.company = 0.1;
+  const careful: Brain = Object.assign(new RuleBrain(), { async work(): Promise<"over budget"> { return "over budget"; } });
+  const log: string[] = [];
+  await doMove(s, friendMove, outbox(log), careful);
+  resolveProject(s, s.projects[0].id, true);
+  await doMove(s, { type: "work_on_project" }, outbox(log), careful);
+  assert.equal(s.projects[0].status, "needs more tokens");
+  assert.equal(s.projects[0].used, 0);
+  assert.ok(log.some(l => l.startsWith("more:")));
+});
+
+test("a step that comes out broken is paid for but not counted as done", async () => {
+  const s = freshState(); ensureWorkshop(s); s.needs.company = 0.1;
+  const broken: Brain = Object.assign(new RuleBrain(), { async work(): Promise<WorkResult> { return { text: "", tokens: 1000, dkk: 0.001, failed: true }; } });
+  await doMove(s, friendMove, outbox(), broken);
+  resolveProject(s, s.projects[0].id, true);
+  await doMove(s, { type: "work_on_project" }, outbox(), broken);
+  assert.equal(s.projects[0].pieces.length, 0);
+  assert.equal(s.projects[0].used, 1000);
+});

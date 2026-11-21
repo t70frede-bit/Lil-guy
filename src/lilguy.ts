@@ -7,7 +7,7 @@ import { clamp, drift, mood, shape, sleepTick, type NeedName, type Needs } from 
 import { highlight, note, type PendingWish, type State } from "./state.js";
 import { availableActions, findAction, findBuildable, findObject, isBuildWish, moveEffect, noveltyReward, PLOTS, type Built, type Move } from "./world.js";
 import { applyEffect, judge } from "./wishmaster.js";
-import { activeProject, canAffordNextStep, kr, makeProject, tokensToFinish, waitingProject, type Project } from "./workshop.js";
+import { activeProject, canAffordNextStep, kr, makeProject, recentlyToldNo, tokensToFinish, waitingProject, type Project } from "./workshop.js";
 import { urgent } from "./needs.js";
 
 export const MAX_MESSAGES_PER_DAY = 12;
@@ -230,6 +230,7 @@ async function propose(s: State, move: Move & { reason?: string }, brain: Brain 
   if (!hasWorkshop(s)) { note(s, "Wanted to start a project, but has nowhere to work on it yet."); return; }
   if (activeProject(s.projects)) { note(s, "Thought of a new project, but wants to finish the one he is working on first."); return; }
   if (waitingProject(s.projects)) { note(s, "Thought of a new project, but is still waiting to hear about the last one."); return; }
+  if (recentlyToldNo(s.projects)) { note(s, "Thought of a new project, but Frederik said not now a little while ago. He will wait a bit."); return; }
   const p = makeProject({ title: move.item, kind: move.kind, idea: move.text, need: move.need, steps: move.steps }, brain?.model ?? "");
   if (typeof p === "string") { note(s, `Tried to plan a project, but the wishmaster sent it back: ${p}`); return; }
   goToWorkbench(s);
@@ -257,10 +258,12 @@ async function work(s: State, brain: Brain | undefined, out: Outbox) {
   const step = p.steps[p.pieces.length];
   const last = p.pieces.length === p.steps.length - 1;
   let res;
-  try { res = await brain.work(s, p, step, last); }
+  try { res = await brain.work(s, p, step, last, p.budget - p.used); }
   catch (e) { note(s, `Could not concentrate on "${p.title}" (${(e as Error).message}).`); return; }
+  if (res === "over budget") { await outOfTokens(s, p, brain, out); return; }
   p.used += res.tokens;
   p.spentDkk = (p.spentDkk ?? 0) + res.dkk;
+  if (res.failed) { note(s, `Tried to work on "${p.title}", but it did not come out right. He will try that step again.`); return; }
   p.pieces.push({ at: new Date().toISOString(), step, text: res.text.slice(0, 2000), tokens: res.tokens });
   if (res.friend) p.friend = res.friend;
   s.needs = moveEffect("work_on_project", s.needs);
@@ -280,7 +283,15 @@ async function work(s: State, brain: Brain | undefined, out: Outbox) {
 
 async function outOfTokens(s: State, p: Project, brain: Brain, out: Outbox) {
   p.status = "needs more tokens";
+  // Ask for enough: the estimate, or what his steps have really cost so far, whichever is more.
   const more = tokensToFinish(p, brain.model);
+  const biggest = Math.max(0, ...p.pieces.map(x => x.tokens));
+  const left = Math.max(1, p.steps.length - p.pieces.length);
+  if (biggest * 1.2 * left > more.tokens) {
+    const tokens = Math.ceil(biggest * 1.2 * left);
+    more.dkk = Math.ceil(more.dkk * tokens / more.tokens * 100) / 100;
+    more.tokens = tokens;
+  }
   p.askedMore = more.tokens;
   note(s, `Ran out of tokens for "${p.title}" and put his tools down. The wishmaster will ask Frederik.`);
   await out.askMore(p, more);
@@ -301,6 +312,7 @@ export function finishedMessage(p: Project, model: string): string {
 export function resolveProject(s: State, id: string, approved: boolean): Project | undefined {
   const p = s.projects.find(x => x.id === id && x.status === "waiting");
   if (!p) return undefined;
+  p.decidedAt = new Date().toISOString();
   if (approved) {
     p.status = "working";
     p.budget = p.estimate.tokens;

@@ -76,13 +76,15 @@ export async function publish(s: State, url: string | undefined, token: string |
 }
 
 let assetsSent = false;
+let assetsNextTry = 0;
 
 /**
  * Send the page files from this copy of the repo to the world page, once after each start.
  * That way `git pull && bash deploy/install.sh` on the server also updates lilguy.gokkehub.com.
  */
 export async function publishAssets(url: string | undefined, token: string | undefined) {
-  if (assetsSent || !url || !token) return;
+  if (assetsSent || !url || !token || Date.now() < assetsNextTry) return;
+  assetsNextTry = Date.now() + 3600_000; // on any failure, try again in an hour
   try {
     const dir = new URL("../../world/", import.meta.url);
     const files: Record<string, string> = {};
@@ -93,7 +95,7 @@ export async function publishAssets(url: string | undefined, token: string | und
       body: JSON.stringify(files),
       signal: AbortSignal.timeout(20_000),
     });
-    if (res.status === 404 || res.status === 405) { assetsSent = true; return; } // older world page without /assets
+    if (res.status === 404) { console.log("The world page does not take page files yet; will try again in an hour."); return; }
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     assetsSent = true;
     console.log("World page files updated.");

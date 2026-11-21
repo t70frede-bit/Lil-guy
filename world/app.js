@@ -555,7 +555,7 @@
   function showProject(p) {
     openThing = null;
     $('tName').textContent = cap(p.title);
-    $('tDesc').textContent = p.idea + (p.friend ? ' Friend: ' + p.friend.name + ', ' + p.friend.looks + ', ' + p.friend.colour + '. ' + p.friend.personality + '. Likes ' + p.friend.likes + '.' : '') + (p.latest ? ' Latest: ' + p.latest : '');
+    $('tDesc').textContent = p.idea + (p.friend ? ' Friend: ' + p.friend.name + ', ' + p.friend.looks + ', ' + p.friend.colour + '. ' + cap(p.friend.personality) + '. Likes ' + p.friend.likes + '.' : '') + (p.latest ? ' Latest: ' + p.latest : '');
     $('tState').textContent = cap(p.status);
     const t = p.tokens || {};
     $('tUsesL').textContent = 'Tokens used'; $('tActsL').textContent = 'The plan';

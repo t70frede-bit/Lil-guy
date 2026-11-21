@@ -35,6 +35,8 @@ export interface Project {
   pieces: ProjectPiece[];
   friend?: FriendDesign;
   at: string;
+  /** When Frederik answered the proposal. */
+  decidedAt?: string;
   messageId?: number;
 }
 
@@ -117,4 +119,11 @@ export function canAffordNextStep(p: Project): boolean {
 /** Tokens to finish the remaining steps, for asking Frederik for more. */
 export function tokensToFinish(p: Project, model: string): { tokens: number; dkk: number } {
   return estimate(Math.max(1, p.steps.length - p.pieces.length), model, p.pieces.length);
+}
+
+/** After a "not now", he waits this long before asking for a new project, so Frederik is not pestered. */
+export const COOLDOWN_AFTER_NO_MS = 6 * 3600_000;
+
+export function recentlyToldNo(projects: Project[], now = Date.now()): boolean {
+  return projects.some(p => p.status === "said no" && now - Date.parse(p.decidedAt ?? p.at) < COOLDOWN_AFTER_NO_MS);
 }

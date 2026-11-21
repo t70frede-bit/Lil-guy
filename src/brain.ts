@@ -9,7 +9,7 @@ import { describe, mood, shape, urgent } from "./needs.js";
 import type { State } from "./state.js";
 import { AREAS, availableActions, BUILDABLES, findObject, MOVE_TYPES, objectsOf, stateOf } from "./world.js";
 import { FREE_THINGS } from "./wishmaster.js";
-import { activeProject, estimate, kr, MAX_OUTPUT_PER_STEP, PROJECT_KINDS, priceOf, USD_TO_DKK, waitingProject, type FriendDesign, type Project } from "./workshop.js";
+import { activeProject, recentlyToldNo, estimate, kr, MAX_OUTPUT_PER_STEP, PROJECT_KINDS, priceOf, USD_TO_DKK, waitingProject, type FriendDesign, type Project } from "./workshop.js";
 
 const Decision = z.object({
   thought: z.string().describe("One short sentence in his own voice about what he is thinking."),
@@ -34,7 +34,7 @@ const Piece = z.object({
   }).optional().describe("Only for a friend project, on the last step: the finished friend design."),
 });
 
-export interface WorkResult { text: string; friend?: FriendDesign; tokens: number; dkk: number }
+export interface WorkResult { text: string; friend?: FriendDesign; tokens: number; dkk: number; failed?: boolean }
 
 export interface Brain {
   /** The model used, for working out what projects will cost. */
@@ -42,7 +42,8 @@ export interface Brain {
   decide(s: State): Promise<Decision>;
   reply(s: State, incoming: string): Promise<string>;
   /** One work session on one step of an approved project. */
-  work(s: State, p: Project, step: string, last: boolean): Promise<WorkResult>;
+  /** `remaining` is the approved tokens left; returns "over budget" instead of going over it. */
+  work(s: State, p: Project, step: string, last: boolean, remaining: number): Promise<WorkResult | "over budget">;
 }
 
 function workshopText(s: State, model: string): string {
@@ -55,6 +56,7 @@ function workshopText(s: State, model: string): string {
     `To start one, use propose_project with a name (item), a kind, the idea (text), a plan of 2 to 8 steps, and the need it is for. The wishmaster works out how many tokens it will take (thinking costs tokens, and tokens cost Frederik money; 4 steps is about ${ex.tokens} tokens, ${kr(ex.dkk)}) and asks Frederik. Nothing happens until he says yes. Fewer steps cost less.`,
     active ? `Your project right now: "${active.title}" (${active.kind}). Done ${active.pieces.length} of ${active.steps.length} steps. Next step: ${active.steps[active.pieces.length]}. Use work_on_project to work on it.` : "You have no project going right now.",
     waiting ? `Waiting for Frederik: "${waiting.title}" (${waiting.status}). You cannot start another project until he answers.` : "",
+    recentlyToldNo(s.projects) ? "Frederik said not now to your last project idea a little while ago. Give it some hours before you ask for a new one." : "",
     done.length ? `Projects you have finished: ${done.join(", ")}.` : "",
   ].filter(Boolean).join("\n");
 }
@@ -133,26 +135,31 @@ export class ClaudeBrain implements Brain {
     return text || "...";
   }
 
-  async work(s: State, p: Project, step: string, last: boolean): Promise<WorkResult> {
+  async work(s: State, p: Project, step: string, last: boolean, remaining: number): Promise<WorkResult | "over budget"> {
     const before = p.pieces.slice(-2).map(x => `- ${x.step}: ${x.text.slice(0, 1200)}`).join("\n") || "- nothing yet, this is the first step";
-    const res = await this.client.messages.parse({
+    const request = {
       model: this.model,
-      max_tokens: MAX_OUTPUT_PER_STEP,
-      output_config: { effort: "low", format: zodOutputFormat(Piece) },
-      system: [{ type: "text", text: `${CHARACTER}\n\nYou are in your workshop, working on one of your own projects that Frederik said yes to. Do one step at a time and write down what you made. Stay small and in your own voice. You cannot run code or reach the internet; you make ideas, plans, designs, rules and stories.`, cache_control: { type: "ephemeral" } }],
-      messages: [{ role: "user", content: [
+      output_config: { effort: "low" as const, format: zodOutputFormat(Piece) },
+      system: [{ type: "text" as const, text: `${CHARACTER}\n\nYou are in your workshop, working on one of your own projects that Frederik said yes to. Do one step at a time and write down what you made. Stay small and in your own voice. You cannot run code or reach the internet; you make ideas, plans, designs, rules and stories.`, cache_control: { type: "ephemeral" as const } }],
+      messages: [{ role: "user" as const, content: [
         `Project: "${p.title}" (${p.kind}). Idea: ${p.idea}`,
         `Plan: ${p.steps.map((x, i) => `${i + 1}. ${x}`).join(" ")}`,
         `What you made so far (latest):\n${before}`,
         `Now do step ${p.pieces.length + 1}: ${step}.${last ? " This is the last step, so finish the project." : ""}${last && p.kind === "friend" ? " Fill in the friend design." : ""}`,
       ].join("\n\n") }],
-    });
+    };
+    // Hard cap: count what this step will read (free), and only let it write what is left of the budget.
+    const counted = await this.client.messages.countTokens({ model: request.model, system: request.system, messages: request.messages, output_config: { format: request.output_config.format } });
+    const input = Math.ceil(counted.input_tokens * 1.05);
+    const maxOut = Math.min(MAX_OUTPUT_PER_STEP, remaining - input);
+    if (maxOut < 300) return "over budget";
+    const res = await this.client.messages.parse({ ...request, max_tokens: maxOut });
     const u = res.usage;
-    const input = u.input_tokens + (u.cache_creation_input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0);
+    const used = u.input_tokens + (u.cache_creation_input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0);
     const [pin, pout] = priceOf(this.model);
-    const dkk = ((input * pin + u.output_tokens * pout) / 1e6) * USD_TO_DKK;
-    const tokens = input + u.output_tokens;
-    if (res.stop_reason === "refusal" || !res.parsed_output) return { text: "Hmm. That step did not work out.", tokens, dkk };
+    const dkk = ((used * pin + u.output_tokens * pout) / 1e6) * USD_TO_DKK;
+    const tokens = used + u.output_tokens;
+    if (res.stop_reason === "refusal" || !res.parsed_output) return { text: "", tokens, dkk, failed: true };
     return { ...res.parsed_output, tokens, dkk };
   }
 }
@@ -170,7 +177,7 @@ export class RuleBrain implements Brain {
     if (n.energy < 0.15) return { thought: "So... sleepy...", moves: [{ type: "sleep" }] };
     if (activeProject(s.projects)) return { thought: "Back to my project!", moves: [{ type: "work_on_project" }] };
     const canPlan = s.built.some(b => b.buildable === "workshop") && !waitingProject(s.projects);
-    if (canPlan && u.fulfilled) return { thought: "I want to make something.", moves: [RuleBrain.plan("fulfilled")] };
+    if (canPlan && !recentlyToldNo(s.projects) && u.fulfilled) return { thought: "I want to make something.", moves: [RuleBrain.plan("fulfilled")] };
     if (u.company && !s.pending.length) {
       return { thought: "It is very quiet.", moves: [
         { type: "wish", item: "Frederik to say hi", need: "company", reason: "I have been alone for a long time." },
@@ -185,7 +192,7 @@ export class RuleBrain implements Brain {
         const a = availableActions(s, o).find(x => !s.tried[`use:${o.id}:${x.verb}`]);
         if (a) return { thought: `What happens if I ${a.verb}?`, moves: [{ type: "use", target: o.id, action: a.verb }] };
       }
-      if (canPlan && !s.projects.some(p => p.status === "said no" && Date.now() - Date.parse(p.at) < 6 * 3600_000)) return { thought: "I have seen everything. I could make something new!", moves: [RuleBrain.plan("curiosity")] };
+      if (canPlan && !recentlyToldNo(s.projects)) return { thought: "I have seen everything. I could make something new!", moves: [RuleBrain.plan("curiosity")] };
       const gift = FREE_THINGS.find(t => t.meets === "curiosity" && !s.items.includes(t.name));
       if (gift) return { thought: "I have seen everything here.", moves: [{ type: "wish", item: gift.name, need: "curiosity", reason: "I have looked at everything already." }] };
     }
@@ -198,7 +205,7 @@ export class RuleBrain implements Brain {
   async reply(_s: State, incoming: string): Promise<string> {
     return incoming.length < 20 ? "Hi!! Hi hi hi!" : "I do not understand all of that, but I like that you wrote it.";
   }
-  async work(_s: State, p: Project, step: string, last: boolean): Promise<WorkResult> {
+  async work(_s: State, p: Project, step: string, last: boolean): Promise<WorkResult | "over budget"> {
     const friend = last && p.kind === "friend" ? { name: "Bobble", looks: "a small round puff", shape: "ball", colour: "light blue", personality: "shy but brave", likes: "stones and bubbles" } : undefined;
     return { text: `I worked on ${step}. It is getting good.`, ...(friend ? { friend } : {}), tokens: 0, dkk: 0 };
   }
