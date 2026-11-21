@@ -1,0 +1,23 @@
+# Publishes lil guy's world page (world/) to lilguy.gokkehub.com.
+# Needs two repo secrets: CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID.
+name: Deploy world page
+on:
+  push:
+    branches: [main]
+    paths: ["world/**", ".github/workflows/world.yml"]
+  workflow_dispatch:
+concurrency: world-deploy
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy the Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: world
+          wranglerVersion: "4.40.0"
+          command: deploy
