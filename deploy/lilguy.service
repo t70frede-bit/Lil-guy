@@ -1,0 +1,16 @@
+[Unit]
+Description=Lil guy
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=lilguy
+WorkingDirectory=/opt/lil-guy
+EnvironmentFile=/opt/lil-guy/.env
+ExecStart=/usr/bin/node dist/src/index.js
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
