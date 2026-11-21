@@ -32,6 +32,11 @@ Add `TELEGRAM_BOT_TOKEN` to talk to him on Telegram, and `ANTHROPIC_API_KEY` (wi
 
 ## Put him on a server (Hetzner, Ubuntu 24.04 or 26.04)
 
+**Easiest, no terminal:** when creating the server in Hetzner Cloud, open "Cloud config" and paste [deploy/hetzner-cloud-config.yaml](deploy/hetzner-cloud-config.yaml), with your Telegram token and Anthropic key filled in there. The server installs and starts lil guy at first boot (about 5 minutes); then send `/start` to your bot. The install log is at `/var/log/lilguy-install.log`.
+
+**Or by hand over SSH:**
+
+
 1. Create the server in Hetzner Cloud (Ubuntu 26.04, the cheapest size is plenty). Hetzner emails you the root password.
 2. Connect from your own computer's terminal, so you can paste: `ssh root@YOUR_SERVER_IP` (Windows: PowerShell; Mac: Terminal). Type the emailed password; Hetzner then asks you to choose a new one.
 3. Run the installer. If the repo is public:

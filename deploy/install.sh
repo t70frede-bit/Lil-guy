@@ -3,7 +3,10 @@
 #   bash install.sh
 # It asks for the GitHub token (only if the repo is private), the Telegram bot token
 # and the Anthropic API key. Keys are typed in hidden and stored only in /opt/lil-guy/.env.
+# For unattended installs (cloud-init), set GH_TOKEN, TELEGRAM_BOT_TOKEN and
+# ANTHROPIC_API_KEY in the environment instead and nothing is asked.
 set -euo pipefail
+export HOME="${HOME:-/root}"
 
 REPO="t70frede-bit/Lil-guy"
 DIR=/opt/lil-guy
@@ -29,7 +32,7 @@ echo "== 2/5 Getting lil guy's code =="
 id lilguy >/dev/null 2>&1 || useradd --system --create-home --shell /usr/sbin/nologin lilguy
 export GIT_TERMINAL_PROMPT=0
 git config --global --add safe.directory "$DIR"
-ask_token() { echo "The repo is private. Paste a GitHub token with read access to $REPO (hidden):"; read -rs GH_TOKEN; echo; }
+ask_token() { [ -n "${GH_TOKEN:-}" ] && return 0; echo "The repo is private. Paste a GitHub token with read access to $REPO (hidden):"; read -rs GH_TOKEN; echo; }
 if [ -d "$DIR/.git" ]; then
   if ! git -C "$DIR" pull --ff-only; then
     ask_token
@@ -54,10 +57,9 @@ npm test
 echo "== 4/5 Keys =="
 if [ ! -f .env ]; then
   cp .env.example .env
-  echo "Paste the Telegram bot token from @BotFather (hidden), then press Enter:"
-  read -rs TG; echo
-  echo "Paste the Anthropic API key (hidden), then press Enter:"
-  read -rs AK; echo
+  TG="${TELEGRAM_BOT_TOKEN:-}"; AK="${ANTHROPIC_API_KEY:-}"
+  if [ -z "$TG" ]; then echo "Paste the Telegram bot token from @BotFather (hidden), then press Enter:"; read -rs TG; echo; fi
+  if [ -z "$AK" ]; then echo "Paste the Anthropic API key (hidden), then press Enter:"; read -rs AK; echo; fi
   sed -i "s|^TELEGRAM_BOT_TOKEN=.*|TELEGRAM_BOT_TOKEN=${TG}|; s|^ANTHROPIC_API_KEY=.*|ANTHROPIC_API_KEY=${AK}|" .env
 fi
 chmod 600 .env
