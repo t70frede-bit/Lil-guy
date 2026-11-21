@@ -48,6 +48,7 @@ export async function step(s: State, brain: Brain, out: Outbox): Promise<void> {
 
   if (s.sleeping) {
     s.needs = sleepTick(s.needs);
+    if (s.items.includes("a warm blanket")) s.needs = applyEffect(s.needs, { energy: 0.02 }); // sleeps better tucked in
     if (s.needs.energy >= 0.95) { s.sleeping = false; note(s, "Woke up rested."); }
     return;
   }

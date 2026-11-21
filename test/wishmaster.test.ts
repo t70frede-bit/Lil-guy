@@ -134,3 +134,24 @@ test("an older lil guy gets highlights picked from his diary", () => {
   backfillHighlights(s);
   assert.deepEqual(s.highlights.map(h => h.kind), ["first", "built"]);
 });
+
+test("a gift from the wishmaster becomes something he can use", async () => {
+  const s = freshState();
+  const out: Outbox = { async say() {}, async ask() {}, async inform() {}, async propose() {}, async askMore() {} };
+  s.needs = { ...s.needs, energy: 0.1 };
+  await doMove(s, { type: "wish", item: "a warm blanket", need: "energy", reason: "I am cold and tired" } as any, out);
+  assert.ok(s.items.includes("a warm blanket"));
+  assert.equal(findObject(s, "blanket")?.id, "blanket");
+  await doMove(s, { type: "use", target: "blanket", action: "spread it over the bed" }, out);
+  assert.equal(s.objects.blanket, "spread out");
+  assert.equal(s.last?.object, "blanket");
+});
+
+test("a present Frederik approved becomes a gift box", async () => {
+  const s = freshState();
+  s.pending.push({ id: "p1", item: "a toy car", need: "curiosity", reason: "", at: new Date().toISOString() });
+  resolveWish(s, "p1", true);
+  const box = findObject(s, "toy car");
+  assert.equal(box?.id, "gift-toy-car");
+  assert.equal(box?.kind, "giftbox");
+});

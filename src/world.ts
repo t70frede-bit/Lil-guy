@@ -23,10 +23,24 @@ const BASE = WORLD.objects as unknown as WorldObject[];
 export const BUILDABLES = WORLD.buildables as unknown as Buildable[];
 const CUSTOM = WORLD.custom as unknown as { kind: string; desc: string; actions: Action[] };
 export const PLOTS = WORLD.plots.length;
+/** What the wishmaster's free things (and Frederik's presents) become inside his house. */
+interface GiftDef extends Omit<WorldObject, "area" | "built"> { item: string }
+export const GIFTS = WORLD.gifts as unknown as GiftDef[];
+const CUSTOM_GIFT = WORLD.customGift as unknown as { kind: string; desc: string; state: string; actions: Action[] };
+
+/** The id a present gets in his house, matching the web page. */
+export function giftId(item: string): string {
+  return GIFTS.find(g => g.item === item)?.id ?? `gift-${words(item).replace(/^(a|an|some|the)\s+/, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 30)}`;
+}
 
 /** Every place he can be next to: the house, outside, and everything built so far. */
-export function objectsOf(s: { built: Built[] }): WorldObject[] {
+export function objectsOf(s: { built: Built[]; items?: string[] }): WorldObject[] {
   const out = [...BASE];
+  for (const item of s.items ?? []) {
+    const g = GIFTS.find(x => x.item === item);
+    if (g) out.push({ id: g.id, name: g.name, area: "home", kind: g.kind, state: g.state, desc: g.desc, actions: g.actions });
+    else out.push({ id: giftId(item), name: item.replace(/^(a|an|some|the)\s+/i, ""), area: "home", kind: CUSTOM_GIFT.kind, state: CUSTOM_GIFT.state, desc: CUSTOM_GIFT.desc, actions: CUSTOM_GIFT.actions });
+  }
   for (const b of s.built) {
     const def = BUILDABLES.find(x => x.id === b.buildable);
     if (def) for (const o of def.objects) out.push({ ...o, id: s.built.filter(x => x.buildable === def.id).indexOf(b) > 0 ? `${o.id}-${b.id}` : o.id, area: "outside", kind: def.kind, built: b.id });
@@ -37,7 +51,7 @@ export function objectsOf(s: { built: Built[] }): WorldObject[] {
 
 const words = (t: string) => t.toLowerCase().replace(/[^a-z0-9' -]/g, " ").trim();
 
-export function findObject(s: { built: Built[] }, text: string | undefined): WorldObject | undefined {
+export function findObject(s: { built: Built[]; items?: string[] }, text: string | undefined): WorldObject | undefined {
   if (!text) return undefined;
   const t = words(text);
   const all = objectsOf(s);
