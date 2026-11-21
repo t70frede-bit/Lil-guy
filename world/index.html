@@ -161,8 +161,9 @@ details.all summary { cursor: pointer; font: 600 13px var(--display); color: var
 <section class="panel glass" id="p-world" hidden aria-label="World">
   <header><h2>His world</h2><button class="close" type="button" aria-label="Close">&times;</button></header>
   <div class="body">
-    <p class="note" style="font-size:13px; margin:0">For now it is just his house and a lot of empty grass. When he really needs something, he can wish for a place, and if Frederik says yes it gets built outside.</p>
+    <p class="note" style="font-size:13px; margin:0">His house, his workshop, and a lot of empty grass. In the workshop he plans his own projects, like designing a new friend, and Frederik has to say yes to each one and its token cost first. When he really needs something, he can wish for a place, and if Frederik says yes it gets built outside.</p>
     <h3>Built so far</h3><ul class="list" id="builtList"><li class="empty">Nothing yet.</li></ul>
+    <h3>Projects in his workshop</h3><ul class="list" id="projList"><li class="empty">None yet.</li></ul>
     <h3>Wishes waiting for Frederik</h3><ul class="list" id="wishList"><li class="empty">None right now.</li></ul>
     <h3>His things</h3><div class="things" id="things"><p class="empty">Nothing yet.</p></div>
     <h3>Things in his world</h3><ul class="list" id="objList"></ul>
@@ -173,8 +174,8 @@ details.all summary { cursor: pointer; font: 600 13px var(--display); color: var
   <header><h2 id="tName">Thing</h2><button class="close" type="button" aria-label="Close">&times;</button></header>
   <div class="body">
     <p id="tDesc" style="margin:0"></p>
-    <dl class="facts"><dt>Right now</dt><dd id="tState"></dd><dt>He has used it</dt><dd id="tUses"></dd></dl>
-    <h3>What he can do here</h3><ul class="list" id="tActs"></ul>
+    <dl class="facts"><dt>Right now</dt><dd id="tState"></dd><dt id="tUsesL">He has used it</dt><dd id="tUses"></dd></dl>
+    <h3 id="tActsL">What he can do here</h3><ul class="list" id="tActs"></ul>
   </div>
 </section>
 

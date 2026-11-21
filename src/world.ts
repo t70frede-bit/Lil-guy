@@ -84,6 +84,8 @@ export const MOVE_TYPES = [
   "sleep",         // go to sleep until rested
   "wish",          // ask the wishmaster for something (item + need + reason)
   "message",       // send Frederik a message (text)
+  "propose_project", // in the workshop: plan a project (item = name, kind, text = idea, steps, need). Frederik must approve it
+  "work_on_project", // in the workshop: work on the next step of the approved project
 ] as const;
 export type MoveType = (typeof MOVE_TYPES)[number];
 
@@ -94,6 +96,8 @@ export interface Move {
   item?: string;
   need?: string;
   text?: string;
+  kind?: string;
+  steps?: string[];
 }
 
 /** How a move changes his needs before novelty rewards. */
@@ -106,6 +110,7 @@ export function moveEffect(type: MoveType, n: Needs): Needs {
     case "try": e.energy -= 0.05; e.fulfilled += 0.03; break;
     case "rest": e.energy += 0.06; e.curiosity += 0.02; break;
     case "message": e.company += 0.05; break;
+    case "work_on_project": e.energy -= 0.06; break;
     default: break;
   }
   for (const k of Object.keys(e) as (keyof Needs)[]) e[k] = clamp(e[k]);

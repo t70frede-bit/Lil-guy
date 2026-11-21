@@ -32,6 +32,12 @@ export function snapshot(s: State, tickSeconds: number) {
     diary: s.diary.filter(d => !PRIVATE.test(d.text) && !d.text.startsWith("Thought: ")).slice(-15)
       .map(d => ({ at: d.at, text: d.text.slice(0, 240) })),
     highlights: (s.highlights ?? []).slice(-30),
+    projects: (s.projects ?? []).slice(-10).map(p => ({
+      title: p.title, kind: p.kind, idea: p.idea, status: p.status, steps: p.steps, done: p.pieces.length,
+      tokens: { estimate: p.estimate.tokens, approved: p.budget, used: p.used }, dkk: { estimate: p.estimate.dkk, spent: p.spentDkk ?? 0 },
+      latest: p.pieces.length ? p.pieces[p.pieces.length - 1].text.slice(0, 400) : "",
+      friend: p.friend, at: p.at,
+    })),
     ticks: s.ticks,
   };
 }

@@ -116,7 +116,7 @@
   let world = null;       // world.json
   const S = {             // latest state from his server
     needs: { energy: 0.8, curiosity: 0.55, company: 0.7, feisty: 0.1, fulfilled: 0.5 },
-    sleeping: false, place: 'rug', mood: 'content', objects: {}, built: [], uses: {}, items: [], wishes: []
+    sleeping: false, place: 'rug', mood: 'content', objects: {}, built: [], uses: {}, items: [], wishes: [], projects: []
   };
 
   const builders = {
@@ -230,6 +230,36 @@
       mesh(box(0.6, 1.0, 0.06), toon(0x8a5a3c), 0, 0.5, 0.82, g);
       mesh(box(0.9, 0.03, 0.5), toon(0xc76b5a), 0, 0.02, 1.2, g);
       return () => {};
+    },
+    workshop(g, def) {
+      if (def.id.startsWith('planboard')) {
+        // The plan board stands beside the shed; pinned papers show when a plan is up.
+        mesh(box(0.1, 1.3, 1.6), toon(0xc9a27a), 1.9, 1.05, 0.2, g);
+        [[-0.5], [0.5]].forEach(([z]) => mesh(cyl(0.05, 0.05, 1.0, 6), toon(0x7d5238), 1.9, 0.5, 0.2 + z, g));
+        const papers = new THREE.Group(); g.add(papers);
+        [[0.45, -0.4, 0xffffff], [0.35, 0.1, 0xfff3b0], [-0.1, 0.45, 0xffffff], [-0.2, -0.25, 0xd6ecff]].forEach(([y, z, c]) => {
+          const pp = mesh(new THREE.PlaneGeometry(0.42, 0.32), basic(c), 1.84, 1.05 + y * 0.9, 0.2 + z, papers); pp.rotation.y = -Math.PI / 2;
+        });
+        return st => { papers.visible = st !== 'empty'; papers.children.forEach((pp, i) => { pp.visible = st === 'a finished project is pinned up' || i < 2; }); };
+      }
+      // The shed: open at the front so you can see him working.
+      const wood = toon(0xb07a4f), dark = toon(0x7d5238);
+      mesh(box(3.0, 0.1, 2.4), toon(0xd9c3a5), 0, 0.05, -0.2, g);
+      mesh(box(3.0, 2.2, 0.12), wood, 0, 1.1, -1.4, g);
+      mesh(box(0.12, 2.2, 2.4), wood, -1.5, 1.1, -0.2, g);
+      mesh(box(0.12, 2.2, 2.4), wood, 1.5, 1.1, -0.2, g);
+      const roof = mesh(box(3.5, 0.14, 2.9), toon(0xc2473d), 0, 2.35, -0.2, g); roof.rotation.x = -0.12;
+      sign('Workshop', g, -2.3, 1.3, 0.9);
+      // Workbench with tiny tools.
+      mesh(box(2.0, 0.1, 0.8), toon(0x9a6b4a), 0, 0.85, -0.85, g);
+      [[-0.9, -1.15], [0.9, -1.15], [-0.9, -0.55], [0.9, -0.55]].forEach(([x, z]) => mesh(box(0.08, 0.8, 0.08), dark, x, 0.42, z, g));
+      mesh(box(0.35, 0.06, 0.1), toon(0x9b958c), -0.5, 0.93, -0.8, g);
+      mesh(cyl(0.03, 0.03, 0.4, 6), toon(0xe0a548), 0.3, 0.93, -0.75, g).rotation.z = Math.PI / 2;
+      const mess = new THREE.Group(); g.add(mess);
+      [[-0.2, -0.95, 0.3], [0.6, -0.7, -0.4], [0.05, -0.6, 0.9]].forEach(([x, z, r]) => { const pp = mesh(new THREE.PlaneGeometry(0.3, 0.22), basic(0xffffff), x, 0.91, z, mess); pp.rotation.x = -Math.PI / 2; pp.rotation.z = r; });
+      const lamp = new THREE.PointLight(0xffe08a, 0, 4, 2); lamp.position.set(0, 1.9, -0.6); g.add(lamp);
+      mesh(sph(0.12, 10, 8), basic(0xffe9a8), 0, 2.05, -0.6, g);
+      return st => { mess.visible = st === 'messy'; lamp.intensity = st === 'messy' ? 0.6 : 0.25; };
     },
     custom(g, def) {
       const tent = mesh(new THREE.ConeGeometry(1.4, 2, 6), toon(0xe0a548), 0, 1, -0.3, g); void tent;
@@ -389,7 +419,7 @@
   function apply(d) {
     if (!d || !d.needs) return;
     S.needs = d.needs; S.sleeping = !!d.sleeping; S.mood = d.mood || 'content';
-    S.objects = d.objects || {}; S.built = d.built || []; S.uses = d.uses || {}; S.items = d.items || []; S.wishes = d.wishes || [];
+    S.objects = d.objects || {}; S.built = d.built || []; S.uses = d.uses || {}; S.items = d.items || []; S.wishes = d.wishes || []; S.projects = d.projects || [];
     if (world) syncBuilt();
     Object.values(things).forEach(t => t.update(S.objects[t.def.id] || t.def.state));
 
@@ -438,6 +468,13 @@
     const bl = $('builtList'); bl.textContent = '';
     if (!S.built.length) bl.append(li('Nothing yet. The land outside is empty.'));
     S.built.forEach(b => bl.append(li(cap(b.name), 'built ' + new Date(b.at).toLocaleDateString(), () => focusOn(b.buildable ? (world.buildables.find(x => x.id === b.buildable) || {}).objects[0].id : b.id))));
+    const pl = $('projList'); pl.textContent = '';
+    if (!S.projects.length) pl.append(li('None yet. When he has an idea, Frederik has to say yes first.'));
+    S.projects.slice().reverse().forEach(p => {
+      const right = p.status === 'working' ? p.done + ' of ' + p.steps.length + ' steps' : p.status;
+      const item = li(cap(p.title), right, () => showProject(p));
+      pl.append(item);
+    });
     const wl = $('wishList'); wl.textContent = '';
     if (!S.wishes.length) wl.append(li('None right now.'));
     S.wishes.forEach(w => wl.append(li(cap(w))));
@@ -449,8 +486,8 @@
   }
 
   // ---------- Highlights: only the moments worth remembering ----------
-  const HL_ICON = { first: '\u2728', wish: '\ud83c\udf20', yes: '\ud83c\udf89', no: '\u2601\ufe0f', built: '\ud83d\udd28', mood: '\ud83d\udcad', chat: '\ud83d\udcac', gift: '\ud83c\udf81' };
-  const HL_BIG = { built: 1, yes: 1, wish: 1 };
+  const HL_ICON = { project: '\ud83d\udee0\ufe0f', first: '\u2728', wish: '\ud83c\udf20', yes: '\ud83c\udf89', no: '\u2601\ufe0f', built: '\ud83d\udd28', mood: '\ud83d\udcad', chat: '\ud83d\udcac', gift: '\ud83c\udf81' };
+  const HL_BIG = { built: 1, yes: 1, wish: 1, project: 1 };
   // Until his server sends highlights, pick them out of the recent diary.
   function guessHighlights(diary) {
     const out = [];
@@ -508,9 +545,23 @@
     $('tName').textContent = cap(t.def.name);
     $('tDesc').textContent = t.def.desc;
     $('tState').textContent = cap(st);
+    $('tUsesL').textContent = 'He has used it'; $('tActsL').textContent = 'What he can do here';
     const n = S.uses[id] || 0; $('tUses').textContent = n ? n + (n === 1 ? ' time' : ' times') : 'Not yet';
     const acts = $('tActs'); acts.textContent = '';
     (t.def.actions || []).forEach(a => acts.append(li(cap(a.verb), a.from && a.from !== st ? 'when ' + a.from : (a.to && a.to !== st ? 'makes it ' + a.to : ''))));
+    if (openPanel !== 'thing') show('thing', true);
+  }
+  // A project card: the idea, the plan, the tokens Frederik approved, and what he made last.
+  function showProject(p) {
+    openThing = null;
+    $('tName').textContent = cap(p.title);
+    $('tDesc').textContent = p.idea + (p.friend ? ' Friend: ' + p.friend.name + ', ' + p.friend.looks + ', ' + p.friend.colour + '. ' + p.friend.personality + '. Likes ' + p.friend.likes + '.' : '') + (p.latest ? ' Latest: ' + p.latest : '');
+    $('tState').textContent = cap(p.status);
+    const t = p.tokens || {};
+    $('tUsesL').textContent = 'Tokens used'; $('tActsL').textContent = 'The plan';
+    $('tUses').textContent = (t.used || 0).toLocaleString() + ' of ' + (t.approved || 0).toLocaleString() + ' approved' + (p.dkk && p.dkk.spent ? ' (' + p.dkk.spent.toFixed(2).replace('.', ',') + ' kr)' : '');
+    const acts = $('tActs'); acts.textContent = '';
+    (p.steps || []).forEach((x, i) => acts.append(li((i + 1) + '. ' + x, i < p.done ? 'done' : '')));
     if (openPanel !== 'thing') show('thing', true);
   }
   function focusOn(id) {

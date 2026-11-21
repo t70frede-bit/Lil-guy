@@ -9,6 +9,7 @@ import { describe, mood, shape, urgent } from "./needs.js";
 import type { State } from "./state.js";
 import { AREAS, availableActions, BUILDABLES, findObject, MOVE_TYPES, objectsOf, stateOf } from "./world.js";
 import { FREE_THINGS } from "./wishmaster.js";
+import { activeProject, estimate, kr, MAX_OUTPUT_PER_STEP, PROJECT_KINDS, priceOf, USD_TO_DKK, waitingProject, type FriendDesign, type Project } from "./workshop.js";
 
 const Decision = z.object({
   thought: z.string().describe("One short sentence in his own voice about what he is thinking."),
@@ -19,12 +20,44 @@ const Decision = z.object({
     item: z.string().optional().describe("For wish: the thing he wants."),
     need: z.string().optional().describe("For wish: which need it is for (energy, curiosity, company, feisty, fulfilled)."),
     reason: z.string().optional().describe("For wish: why you need it, in your own words."),
-    text: z.string().optional().describe("For message: what he says to Frederik."),
+    text: z.string().optional().describe("For message: what he says to Frederik. For propose_project: the idea in two or three sentences."),
+    kind: z.enum(PROJECT_KINDS).optional().describe("For propose_project: what sort of project."),
+    steps: z.array(z.string()).optional().describe("For propose_project: the plan, 2 to 8 short steps. Each step is one work session."),
   })).min(1).max(3),
 });
 export type Decision = z.infer<typeof Decision>;
 
-export interface Brain { decide(s: State): Promise<Decision>; reply(s: State, incoming: string): Promise<string> }
+const Piece = z.object({
+  text: z.string().describe("What you made in this work session, in your own words. At most about 300 words."),
+  friend: z.object({
+    name: z.string(), looks: z.string(), shape: z.string(), colour: z.string(), personality: z.string(), likes: z.string(),
+  }).optional().describe("Only for a friend project, on the last step: the finished friend design."),
+});
+
+export interface WorkResult { text: string; friend?: FriendDesign; tokens: number; dkk: number }
+
+export interface Brain {
+  /** The model used, for working out what projects will cost. */
+  model: string;
+  decide(s: State): Promise<Decision>;
+  reply(s: State, incoming: string): Promise<string>;
+  /** One work session on one step of an approved project. */
+  work(s: State, p: Project, step: string, last: boolean): Promise<WorkResult>;
+}
+
+function workshopText(s: State, model: string): string {
+  if (!s.built.some(b => b.buildable === "workshop")) return "";
+  const active = activeProject(s.projects), waiting = waitingProject(s.projects);
+  const done = s.projects.filter(p => p.status === "done").map(p => p.title);
+  const ex = estimate(4, model);
+  return [
+    `You have a workshop outside. There you can plan your own projects: designing a new friend, making up a game, writing a story, inventing a thing, a drawing, or something else.`,
+    `To start one, use propose_project with a name (item), a kind, the idea (text), a plan of 2 to 8 steps, and the need it is for. The wishmaster works out how many tokens it will take (thinking costs tokens, and tokens cost Frederik money; 4 steps is about ${ex.tokens} tokens, ${kr(ex.dkk)}) and asks Frederik. Nothing happens until he says yes. Fewer steps cost less.`,
+    active ? `Your project right now: "${active.title}" (${active.kind}). Done ${active.pieces.length} of ${active.steps.length} steps. Next step: ${active.steps[active.pieces.length]}. Use work_on_project to work on it.` : "You have no project going right now.",
+    waiting ? `Waiting for Frederik: "${waiting.title}" (${waiting.status}). You cannot start another project until he answers.` : "",
+    done.length ? `Projects you have finished: ${done.join(", ")}.` : "",
+  ].filter(Boolean).join("\n");
+}
 
 function surroundings(s: State): string {
   const here = findObject(s, s.place);
@@ -43,7 +76,7 @@ function surroundings(s: State): string {
   ].join("\n");
 }
 
-function situation(s: State): string {
+function situation(s: State, model: string): string {
   const m = mood(s.needs, s.sleeping);
   const recent = s.diary.slice(-12).map(d => `- ${d.text}`).join("\n") || "- nothing yet";
   const tried = Object.entries(s.tried).sort((a, b) => b[1] - a[1]).slice(0, 20).map(([k, v]) => `${k} (${v}x)`).join(", ") || "nothing yet";
@@ -55,9 +88,10 @@ function situation(s: State): string {
     `Things you have already done (doing new things feels much better than repeating): ${tried}.`,
     `Free things the wishmaster can give if you really need them: ${FREE_THINGS.map(t => `${t.name} (for ${t.meets})`).join(", ")}.`,
     `Outside is empty land. If a need keeps coming back, you can wish for a place or thing to be built out there, and the wishmaster asks Frederik. Ideas other little creatures have had: ${BUILDABLES.filter(b => !s.built.some(x => x.buildable === b.id)).map(b => `${b.name} (for ${b.meets})`).join(", ")}. You can also dream up your own.`,
+    workshopText(s, model),
     `Wishes still waiting for Frederik: ${s.pending.map(p => p.item).join(", ") || "none"}.`,
     `What happened lately:\n${recent}`,
-  ].join("\n");
+  ].filter(Boolean).join("\n");
 }
 
 const RULES = `Pick 1 to 3 moves from the menu. Rules:
@@ -65,11 +99,13 @@ const RULES = `Pick 1 to 3 moves from the menu. Rules:
 - Prefer using things in ways you have not tried before, or going somewhere new. To use a thing, pick "use" with its name as target and one of its listed actions.
 - Wishing for a place to be built is a big wish. Only do it when a need keeps coming back and nothing you have fixes it, and say which need.
 - Only send Frederik a message when you have something real to say or ask. Keep it to one or two short sentences.
+- A project is a big thing. Only propose one when a need explains it (often fulfilled or curiosity, or company for a friend), and say which need. Keep the plan small.
+- When you have an approved project, working on it in the workshop is a great way to spend your time.
 - When energy is very low, sleep.`;
 
 export class ClaudeBrain implements Brain {
   private client = new Anthropic();
-  constructor(private model: string) {}
+  constructor(public model: string) {}
 
   async decide(s: State): Promise<Decision> {
     const res = await this.client.messages.parse({
@@ -77,7 +113,7 @@ export class ClaudeBrain implements Brain {
       max_tokens: 2000,
       output_config: { effort: "low", format: zodOutputFormat(Decision) },
       system: [{ type: "text", text: `${CHARACTER}\n\n${RULES}`, cache_control: { type: "ephemeral" } }],
-      messages: [{ role: "user", content: situation(s) }],
+      messages: [{ role: "user", content: situation(s, this.model) }],
     });
     if (res.stop_reason === "refusal" || !res.parsed_output) return { thought: "Hmm.", moves: [{ type: "wait" }] };
     return res.parsed_output;
@@ -90,19 +126,51 @@ export class ClaudeBrain implements Brain {
       max_tokens: 1000,
       output_config: { effort: "low" },
       system: [{ type: "text", text: `${CHARACTER}\n\nFrederik is messaging you on Telegram. Answer in one to three short sentences, in your own voice. Never promise things on behalf of the wishmaster.`, cache_control: { type: "ephemeral" } }],
-      messages: [{ role: "user", content: `${situation(s)}\n\nRecent chat:\n${history}\n\nFrederik just wrote: ${incoming}` }],
+      messages: [{ role: "user", content: `${situation(s, this.model)}\n\nRecent chat:\n${history}\n\nFrederik just wrote: ${incoming}` }],
     });
     if (res.stop_reason === "refusal") return "...";
     const text = res.content.filter(b => b.type === "text").map(b => (b as { text: string }).text).join(" ").trim();
     return text || "...";
   }
+
+  async work(s: State, p: Project, step: string, last: boolean): Promise<WorkResult> {
+    const before = p.pieces.slice(-2).map(x => `- ${x.step}: ${x.text.slice(0, 1200)}`).join("\n") || "- nothing yet, this is the first step";
+    const res = await this.client.messages.parse({
+      model: this.model,
+      max_tokens: MAX_OUTPUT_PER_STEP,
+      output_config: { effort: "low", format: zodOutputFormat(Piece) },
+      system: [{ type: "text", text: `${CHARACTER}\n\nYou are in your workshop, working on one of your own projects that Frederik said yes to. Do one step at a time and write down what you made. Stay small and in your own voice. You cannot run code or reach the internet; you make ideas, plans, designs, rules and stories.`, cache_control: { type: "ephemeral" } }],
+      messages: [{ role: "user", content: [
+        `Project: "${p.title}" (${p.kind}). Idea: ${p.idea}`,
+        `Plan: ${p.steps.map((x, i) => `${i + 1}. ${x}`).join(" ")}`,
+        `What you made so far (latest):\n${before}`,
+        `Now do step ${p.pieces.length + 1}: ${step}.${last ? " This is the last step, so finish the project." : ""}${last && p.kind === "friend" ? " Fill in the friend design." : ""}`,
+      ].join("\n\n") }],
+    });
+    const u = res.usage;
+    const input = u.input_tokens + (u.cache_creation_input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0);
+    const [pin, pout] = priceOf(this.model);
+    const dkk = ((input * pin + u.output_tokens * pout) / 1e6) * USD_TO_DKK;
+    const tokens = input + u.output_tokens;
+    if (res.stop_reason === "refusal" || !res.parsed_output) return { text: "Hmm. That step did not work out.", tokens, dkk };
+    return { ...res.parsed_output, tokens, dkk };
+  }
 }
 
 /** A brain with no AI, for testing and for running without an API key. */
 export class RuleBrain implements Brain {
+  model = process.env.LILGUY_MODEL ?? "claude-haiku-5-5";
+  static plan(need: "fulfilled" | "curiosity"): Decision["moves"][number] {
+    return need === "curiosity"
+      ? { type: "propose_project", kind: "friend", need, item: "Design a new friend", text: "Someone small to explore with.", steps: ["What they look like", "What they like", "Their name"] }
+      : { type: "propose_project", kind: "invention", need, item: "A machine that makes bubbles", text: "A machine that blows bubbles when you press a button.", steps: ["Draw the machine", "Work out the button"] };
+  }
   async decide(s: State): Promise<Decision> {
     const n = s.needs, u = urgent(n);
     if (n.energy < 0.15) return { thought: "So... sleepy...", moves: [{ type: "sleep" }] };
+    if (activeProject(s.projects)) return { thought: "Back to my project!", moves: [{ type: "work_on_project" }] };
+    const canPlan = s.built.some(b => b.buildable === "workshop") && !waitingProject(s.projects);
+    if (canPlan && u.fulfilled) return { thought: "I want to make something.", moves: [RuleBrain.plan("fulfilled")] };
     if (u.company && !s.pending.length) {
       return { thought: "It is very quiet.", moves: [
         { type: "wish", item: "Frederik to say hi", need: "company", reason: "I have been alone for a long time." },
@@ -117,6 +185,7 @@ export class RuleBrain implements Brain {
         const a = availableActions(s, o).find(x => !s.tried[`use:${o.id}:${x.verb}`]);
         if (a) return { thought: `What happens if I ${a.verb}?`, moves: [{ type: "use", target: o.id, action: a.verb }] };
       }
+      if (canPlan && !s.projects.some(p => p.status === "said no" && Date.now() - Date.parse(p.at) < 6 * 3600_000)) return { thought: "I have seen everything. I could make something new!", moves: [RuleBrain.plan("curiosity")] };
       const gift = FREE_THINGS.find(t => t.meets === "curiosity" && !s.items.includes(t.name));
       if (gift) return { thought: "I have seen everything here.", moves: [{ type: "wish", item: gift.name, need: "curiosity", reason: "I have looked at everything already." }] };
     }
@@ -128,5 +197,9 @@ export class RuleBrain implements Brain {
   }
   async reply(_s: State, incoming: string): Promise<string> {
     return incoming.length < 20 ? "Hi!! Hi hi hi!" : "I do not understand all of that, but I like that you wrote it.";
+  }
+  async work(_s: State, p: Project, step: string, last: boolean): Promise<WorkResult> {
+    const friend = last && p.kind === "friend" ? { name: "Bobble", looks: "a small round puff", shape: "ball", colour: "light blue", personality: "shy but brave", likes: "stones and bubbles" } : undefined;
+    return { text: `I worked on ${step}. It is getting good.`, ...(friend ? { friend } : {}), tokens: 0, dkk: 0 };
   }
 }

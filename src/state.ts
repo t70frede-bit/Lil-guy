@@ -4,10 +4,11 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { freshNeeds, type Needs } from "./needs.js";
 import type { Built } from "./world.js";
+import type { Project } from "./workshop.js";
 
 export interface DiaryEntry { at: string; text: string }
 /** A moment worth remembering, for the Highlights on his page. */
-export type HighlightKind = "first" | "wish" | "yes" | "no" | "built" | "mood" | "chat" | "gift";
+export type HighlightKind = "first" | "wish" | "yes" | "no" | "built" | "mood" | "chat" | "gift" | "project";
 export interface Highlight { at: string; kind: HighlightKind; text: string }
 export interface PendingWish { id: string; item: string; need: string; reason: string; at: string; messageId?: number }
 
@@ -30,6 +31,8 @@ export interface State {
   /** The moments worth remembering, newest last. */
   highlights: Highlight[];
   pending: PendingWish[];
+  /** His own projects from the workshop, each with a token budget Frederik approved. */
+  projects: Project[];
   ownerChatId?: number;
   telegramOffset: number;
   /** Messages he sent Frederik today, for the daily limit. */
@@ -42,7 +45,7 @@ export interface State {
 export function freshState(): State {
   return {
     needs: freshNeeds(), place: "bed", objects: {}, built: [], sleeping: false, paused: false, items: [], tried: {},
-    diary: [], highlights: [], pending: [], telegramOffset: 0, sentToday: { day: "", count: 0 }, chat: [], ticks: 0,
+    diary: [], highlights: [], pending: [], projects: [], telegramOffset: 0, sentToday: { day: "", count: 0 }, chat: [], ticks: 0,
   };
 }
 
