@@ -80,6 +80,16 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .diary { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .diary li { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 8px; font-size: 13px; overflow-wrap: anywhere; }
 .diary time { color: var(--muted); font-variant-numeric: tabular-nums; }
+.hl { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.hl .day { font: 600 12px var(--display); color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin-top: 6px; }
+.hl .day:first-child { margin-top: 0; }
+.hl .moment { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 10px; align-items: start; border: 1px solid var(--line); border-radius: 14px; padding: 8px 10px; }
+.hl .moment i { font-style: normal; font-size: 18px; line-height: 34px; width: 34px; height: 34px; text-align: center; border-radius: 50%; background: var(--track); }
+.hl .moment p { margin: 0; font-size: 13px; overflow-wrap: anywhere; }
+.hl .moment time { display: block; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.hl .moment.big { border-color: color-mix(in srgb, var(--accent) 45%, transparent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+details.all { border-top: 1px solid var(--line); padding-top: 10px; }
+details.all summary { cursor: pointer; font: 600 13px var(--display); color: var(--muted); margin-bottom: 8px; }
 .empty { color: var(--muted); font-size: 13px; margin: 0; }
 .legend { display: grid; gap: 8px; }
 .legend div { border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; }
@@ -129,7 +139,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   <button type="button" data-panel="world" aria-expanded="false" aria-controls="p-world">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-5h4v5"/></svg>World</button>
   <button type="button" data-panel="diary" aria-expanded="false" aria-controls="p-diary">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h11a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H6z"/><path d="M6 3v18M10 8h5M10 12h5"/></svg>Diary</button>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg>Highlights</button>
   <button type="button" data-panel="about" aria-expanded="false" aria-controls="p-about">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg>About</button>
 </nav>
@@ -171,9 +181,13 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 <div class="toast glass" id="toast" role="status"></div>
 <div class="hint glass">Drag to look around, tap things</div>
 
-<section class="panel glass" id="p-diary" hidden aria-label="Diary">
-  <header><h2>Diary</h2><button class="close" type="button" aria-label="Close">&times;</button></header>
-  <div class="body"><ul class="diary" id="diary"><li><time></time><span class="empty">Waiting to hear from him.</span></li></ul></div>
+<section class="panel glass" id="p-diary" hidden aria-label="Highlights">
+  <header><h2>Highlights</h2><button class="close" type="button" aria-label="Close">&times;</button></header>
+  <div class="body">
+    <ul class="hl" id="highlights"><li class="empty">Waiting to hear from him.</li></ul>
+    <details class="all"><summary>Everything that happened lately</summary>
+      <ul class="diary" id="diary"><li><time></time><span class="empty">Waiting to hear from him.</span></li></ul></details>
+  </div>
 </section>
 
 <section class="panel glass" id="p-about" hidden aria-label="About">

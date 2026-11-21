@@ -415,6 +415,7 @@
     $('fTicks').textContent = String(d.ticks || 0);
 
     renderLists();
+    renderHighlights(d);
     const list = $('diary'); list.textContent = '';
     const entries = (d.diary || []).slice().reverse();
     if (!entries.length) list.innerHTML = '<li><time></time><span class="empty">Nothing has happened yet.</span></li>';
@@ -445,6 +446,47 @@
     S.items.forEach(t => { const c = document.createElement('span'); c.className = 'chip'; c.textContent = t; th.append(c); });
     const ol = $('objList'); ol.textContent = '';
     Object.values(things).filter(t => t.def.kind !== 'field').forEach(t => ol.append(li(cap(t.def.name), S.objects[t.def.id] || t.def.state, () => focusOn(t.def.id))));
+  }
+
+  // ---------- Highlights: only the moments worth remembering ----------
+  const HL_ICON = { first: '\u2728', wish: '\ud83c\udf20', yes: '\ud83c\udf89', no: '\u2601\ufe0f', built: '\ud83d\udd28', mood: '\ud83d\udcad', chat: '\ud83d\udcac', gift: '\ud83c\udf81' };
+  const HL_BIG = { built: 1, yes: 1, wish: 1 };
+  // Until his server sends highlights, pick them out of the recent diary.
+  function guessHighlights(diary) {
+    const out = [];
+    (diary || []).forEach(e => {
+      const t = e.text;
+      if (/for the first time!$/.test(t)) out.push({ at: e.at, kind: 'first', text: t.replace(/ for the first time!$/, '').replace(/^Went/, 'First time: went') + '.' });
+      else if (/ \(new!\)$/.test(t) && !/^(Tried|Looked closely)/.test(t)) out.push({ at: e.at, kind: 'first', text: 'First time: ' + t.replace(/ \(new!\)$/, '') });
+      else if (/^Wished for .+ The wishmaster gave him /.test(t)) out.push({ at: e.at, kind: 'gift', text: t.replace(/:.*$/, '.') });
+      else if (/^Wished for .+ The wishmaster asked Frederik/.test(t)) out.push({ at: e.at, kind: 'wish', text: t.replace(/ The wishmaster asked Frederik\./, '') });
+      else if (/he is now a (spiky ball|cube)/.test(t)) out.push({ at: e.at, kind: 'mood', text: /cube/.test(t) ? 'Felt lonely and turned into a cube.' : 'Got feisty and turned into a spiky ball.' });
+    });
+    return out;
+  }
+  function dayName(iso) {
+    const d = new Date(iso), now = new Date();
+    const key = x => x.getFullYear() + '-' + x.getMonth() + '-' + x.getDate();
+    const y = new Date(now); y.setDate(now.getDate() - 1);
+    if (key(d) === key(now)) return 'Today';
+    if (key(d) === key(y)) return 'Yesterday';
+    return d.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'short' });
+  }
+  function renderHighlights(d) {
+    const list = $('highlights'); list.textContent = '';
+    const items = (d.highlights && d.highlights.length ? d.highlights : guessHighlights(d.diary)).slice().reverse();
+    if (!items.length) { list.innerHTML = '<li class="empty">Nothing big has happened yet. He is still finding his feet.</li>'; return; }
+    let lastDay = '';
+    items.forEach(h => {
+      const day = dayName(h.at);
+      if (day !== lastDay) { const li = document.createElement('li'); li.className = 'day'; li.textContent = day; list.append(li); lastDay = day; }
+      const li = document.createElement('li'); li.className = 'moment' + (HL_BIG[h.kind] ? ' big' : '');
+      const i = document.createElement('i'); i.textContent = HL_ICON[h.kind] || '\u2728'; i.setAttribute('aria-hidden', 'true');
+      const div = document.createElement('div');
+      const p = document.createElement('p'); p.textContent = h.text;
+      const tm = document.createElement('time'); tm.dateTime = h.at; tm.textContent = hhmm(h.at);
+      div.append(p, tm); li.append(i, div); list.append(li);
+    });
   }
 
   function updateLive() {
