@@ -1,9 +1,10 @@
 // Starts lil guy: his life loop every few minutes, and the Telegram wishmaster.
 
 import { ClaudeBrain, RuleBrain, type Brain } from "./brain.js";
-import { heardFromFrederik, resolveWish, step, type Outbox } from "./lilguy.js";
+import { ensureWorkshop, heardFromFrederik, resolveMore, resolveProject, resolveWish, step, type Outbox } from "./lilguy.js";
+import { kr } from "./workshop.js";
 import { describe, mood, shape } from "./needs.js";
-import { publish } from "./publish.js";
+import { publish, publishAssets } from "./publish.js";
 import { load, note, remember, save, type State } from "./state.js";
 import { Telegram } from "./telegram.js";
 
@@ -19,6 +20,8 @@ const brain: Brain = env.ANTHROPIC_API_KEY && env.DRY_RUN !== "1" ? new ClaudeBr
 const tg = env.TELEGRAM_BOT_TOKEN ? new Telegram(env.TELEGRAM_BOT_TOKEN) : undefined;
 const s: State = load(DATA);
 if (OWNER) s.ownerChatId = OWNER;
+// Frederik gave him a workshop for his own projects (2026-11-21).
+if (ensureWorkshop(s)) save(DATA, s);
 
 const outbox: Outbox = {
   async say(text) { await send(`Lil guy: ${text}`); remember(s, "lil guy", text); },
@@ -29,7 +32,31 @@ const outbox: Outbox = {
     const sent = await tg.send(s.ownerChatId, msg, [{ text: "Approve", data: `yes:${wish.id}` }, { text: "Not now", data: `no:${wish.id}` }]);
     wish.messageId = sent.message_id;
   },
+  async propose(p, why) {
+    const msg = [
+      `Wishmaster: Lil guy wants to start a project in his workshop: "${p.title}" (${p.kind}).`,
+      `His idea: ${p.idea}`,
+      `His plan:\n${p.steps.map((x, i) => `${i + 1}. ${x}`).join("\n")}`,
+      `Estimate: up to ${p.estimate.tokens.toLocaleString("da-DK")} tokens, about ${kr(p.estimate.dkk)}.`,
+      `Why I am asking you: ${why} Nothing starts until you say yes, and it can never use more than this without asking you again.`,
+    ].join("\n\n");
+    if (!tg || !s.ownerChatId) { console.log(`[propose] ${msg}`); return; }
+    const sent = await tg.send(s.ownerChatId, msg, [{ text: "Approve", data: `pyes:${p.id}` }, { text: "Not now", data: `pno:${p.id}` }]);
+    p.messageId = sent.message_id;
+  },
+  async askMore(p, more) {
+    const msg = `Wishmaster: Lil guy's project "${p.title}" has used its ${p.budget.toLocaleString("da-DK")} tokens, with ${p.steps.length - p.pieces.length} of ${p.steps.length} steps left. To finish it he needs up to ${more.tokens.toLocaleString("da-DK")} more tokens, about ${kr(more.dkk)}.`;
+    if (!tg || !s.ownerChatId) { console.log(`[more] ${msg}`); return; }
+    await tg.send(s.ownerChatId, msg, [{ text: "Give more", data: `myes:${p.id}` }, { text: "Stop it", data: `mno:${p.id}` }]);
+  },
 };
+
+function projects(): string {
+  if (!s.projects.length) return "Lil guy has not planned any projects yet.";
+  return s.projects.slice(-8).map(p =>
+    `"${p.title}" (${p.kind}): ${p.status}. ${p.pieces.length}/${p.steps.length} steps. Tokens ${p.used.toLocaleString("da-DK")} of ${p.budget.toLocaleString("da-DK")} approved (estimate ${p.estimate.tokens.toLocaleString("da-DK")}, ${kr(p.estimate.dkk)}). Spent about ${kr(p.spentDkk ?? 0)}.`
+  ).join("\n\n");
+}
 
 async function send(text: string) {
   if (!tg || !s.ownerChatId) { console.log(`[telegram] ${text}`); return; }
@@ -44,6 +71,7 @@ function status(): string {
     `Needs: ${describe(s.needs)}.`,
     `Owns: ${s.items.join(", ") || "nothing yet"}.`,
     `Waiting wishes: ${s.pending.map(p => p.item).join(", ") || "none"}.`,
+    `Projects: ${s.projects.filter(p => p.status === "working" || p.status === "waiting" || p.status === "needs more tokens").map(p => `${p.title} (${p.status})`).join(", ") || "none going"}.`,
   ].join("\n");
 }
 
@@ -51,12 +79,13 @@ async function handleText(chatId: number, text: string) {
   if (!s.ownerChatId && text.startsWith("/start")) {
     s.ownerChatId = chatId;
     note(s, "Met Frederik for the first time.");
-    await send("Wishmaster: Hello Frederik. Lil guy now knows how to reach you. Commands: /status, /diary, /pause, /resume.");
+    await send("Wishmaster: Hello Frederik. Lil guy now knows how to reach you. Commands: /status, /diary, /projects, /pause, /resume.");
     return;
   }
   if (chatId !== s.ownerChatId) return; // only Frederik can talk to him
   if (text === "/status") return send(status());
   if (text === "/diary") return send(s.diary.slice(-10).map(d => `${d.at.slice(11, 16)} ${d.text}`).join("\n") || "Nothing yet.");
+  if (text === "/projects") return send(projects());
   if (text === "/pause") { s.paused = true; note(s, "Frederik paused him."); return send("Wishmaster: Lil guy is paused. /resume to wake him."); }
   if (text === "/resume") { s.paused = false; note(s, "Frederik resumed him."); return send("Wishmaster: Lil guy is running again."); }
   if (text.startsWith("/")) return;
@@ -81,6 +110,15 @@ async function pollTelegram() {
         const cb = u.callback_query;
         if (cb?.data && cb.message && cb.message.chat.id === s.ownerChatId) {
           const [verb, id] = cb.data.split(":");
+          if (verb === "pyes" || verb === "pno" || verb === "myes" || verb === "mno") {
+            const yes = verb.endsWith("yes");
+            const p = verb[0] === "p" ? resolveProject(s, id, yes) : resolveMore(s, id, yes);
+            await tg.answer(cb.id, p ? (yes ? "Approved" : "Okay") : "Already handled");
+            await tg.clearButtons(cb.message.chat.id, cb.message.message_id).catch(() => {});
+            if (p) await send(yes ? `Wishmaster: Approved. "${p.title}" may use up to ${p.budget.toLocaleString("da-DK")} tokens.` : verb === "pno" ? "Wishmaster: Told him not now." : `Wishmaster: Stopped "${p.title}".`);
+            save(DATA, s);
+            continue;
+          }
           const wish = resolveWish(s, id, verb === "yes");
           await tg.answer(cb.id, wish ? (verb === "yes" ? "Approved" : "Okay, not now") : "Already handled");
           await tg.clearButtons(cb.message.chat.id, cb.message.message_id).catch(() => {});
@@ -100,6 +138,7 @@ async function lifeLoop() {
     await step(s, brain, outbox);
     save(DATA, s);
     await publish(s, WORLD_URL, WORLD_TOKEN, TICK_SECONDS);
+    await publishAssets(WORLD_URL, WORLD_TOKEN);
     await new Promise(r => setTimeout(r, TICK_SECONDS * 1000));
   }
 }

@@ -12,13 +12,18 @@ A very small creature who lives on a server, gets bored, lonely and feisty on hi
   - a wish with no real need behind it is declined,
   - a free thing that meets a real need is granted on the spot,
   - anything that needs Frederik (company, real objects, money) is sent to Telegram with **Approve** and **Not now** buttons.
+- **Workshop** (`src/workshop.ts`): a building outside where he works on his own projects, like designing a new friend, making up a game or writing a story.
+  - He proposes a project with a small plan (2 to 8 steps). Code, not AI, works out the token estimate (with a 20% margin) and the price in DKK.
+  - The wishmaster sends it to Telegram with **Approve** and **Not now**. Nothing starts before Frederik says yes, and a project must come from a real need.
+  - An approved project can never use more tokens than approved. If it runs out, it stops and asks for more (**Give more** / **Stop it**).
+  - One project at a time. A finished friend design does not move in by itself; he would have to wish for that.
 - **Limits**: at most 12 messages to Frederik a day; `/pause` stops him instantly.
 
 Character sheet: `src/character.ts`. Places and moves: `src/world.ts`.
 
 ## Telegram commands
 
-`/start` (first time only, makes you the owner), `/status`, `/diary`, `/pause`, `/resume`. Any other text is a message to lil guy, and he answers.
+`/start` (first time only, makes you the owner), `/status`, `/diary`, `/projects`, `/pause`, `/resume`. Any other text is a message to lil guy, and he answers.
 
 ## Run it locally
 
@@ -59,4 +64,4 @@ Useful later: `journalctl -u lilguy -f` (watch his diary), `systemctl restart li
 
 ## Costs
 
-With Claude Haiku 5.5 and a thought every 3 minutes, expect roughly 5 to 15 USD a month. Set a monthly spend limit in the Anthropic Console.
+With Claude Haiku 5.5 and a thought every 3 minutes, expect roughly 5 to 15 USD a month. Set a monthly spend limit in the Anthropic Console. Workshop projects are tiny on top of that: with Haiku 5.5 a 4-step project is estimated at about 15,000 tokens, roughly 0,03 kr.

@@ -48,6 +48,17 @@
   ],
   "plots": [[10, -3.5], [14.5, -3.5], [10, 4.5], [14.5, 4.5], [19, -3.5], [19, 4.5], [23.5, -3.5], [23.5, 4.5]],
   "buildables": [
+    { "id": "workshop", "name": "workshop", "keywords": ["workshop", "workbench", "lab", "laboratory", "tinker", "invent"], "meets": "fulfilled", "kind": "workshop",
+      "desc": "A little workshop with a workbench and a big board for plans. This is where he works on his own projects.",
+      "objects": [
+        { "id": "workbench", "name": "workbench", "state": "tidy", "desc": "A workbench with tiny tools, paper and a pencil. Projects start here.",
+          "actions": [
+            { "verb": "tinker", "to": "messy", "effect": { "fulfilled": 0.06, "curiosity": -0.06 }, "line": "Tinkered at the workbench." },
+            { "verb": "tidy the tools", "from": "messy", "to": "tidy", "effect": { "fulfilled": 0.04 }, "line": "Tidied the tools on the workbench." },
+            { "verb": "doodle ideas", "effect": { "curiosity": -0.08, "fulfilled": 0.04 }, "line": "Doodled some ideas for projects." } ] },
+        { "id": "planboard", "name": "plan board", "state": "empty", "desc": "A big board where he pins up the plans for his projects.",
+          "actions": [
+            { "verb": "look at the plans", "effect": { "curiosity": -0.05 }, "line": "Looked at the plans on the board." } ] } ] },
     { "id": "artcorner", "name": "art corner", "keywords": ["art", "draw", "paint", "crayon", "easel", "studio", "pencil"], "meets": "fulfilled", "kind": "artcorner",
       "desc": "An easel and a box of crayons, for making pictures.",
       "objects": [

@@ -6,6 +6,9 @@ the page (`index.html`, a three.js room) and keeps his latest state in one KV na
 - His server (`src/publish.ts`) POSTs a public snapshot to `/state` after each tick, at most every 90 s.
   It never includes his chat with Frederik.
 - The page reads `/state` every 20 s.
+- When the server starts, it POSTs `index.html`, `app.js` and `world.json` from its copy of the repo to `/assets`
+  (same token). The Worker serves those instead of its bundled copies, so a normal server update also updates
+  the page. Only the Worker itself (`worker.js`) still needs a deploy when it changes.
 - The first token ever used to POST is remembered (as a hash). The installer makes that token
   (`WORLD_TOKEN` in `/opt/lil-guy/.env`). To start over with a new token, delete the `owner` key in the KV namespace.
 

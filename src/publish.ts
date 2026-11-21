@@ -1,6 +1,7 @@
 // Sends a public snapshot of lil guy to his world page (lilguy.gokkehub.com).
 // Only what the page needs: no chat with Frederik, no Telegram details.
 
+import { readFileSync } from "node:fs";
 import { mood, shape } from "./needs.js";
 import { findObject } from "./world.js";
 import type { State } from "./state.js";
@@ -32,6 +33,12 @@ export function snapshot(s: State, tickSeconds: number) {
     diary: s.diary.filter(d => !PRIVATE.test(d.text) && !d.text.startsWith("Thought: ")).slice(-15)
       .map(d => ({ at: d.at, text: d.text.slice(0, 240) })),
     highlights: (s.highlights ?? []).slice(-30),
+    projects: (s.projects ?? []).slice(-10).map(p => ({
+      title: p.title, kind: p.kind, idea: p.idea, status: p.status, steps: p.steps, done: p.pieces.length,
+      tokens: { estimate: p.estimate.tokens, approved: p.budget, used: p.used }, dkk: { estimate: p.estimate.dkk, spent: p.spentDkk ?? 0 },
+      latest: p.pieces.length ? p.pieces[p.pieces.length - 1].text.slice(0, 400) : "",
+      friend: p.friend, at: p.at,
+    })),
     ticks: s.ticks,
   };
 }
@@ -65,5 +72,34 @@ export async function publish(s: State, url: string | undefined, token: string |
   } catch (e) {
     if (!failing) console.error(`Could not update the world page: ${(e as Error).message}`);
     failing = true;
+  }
+}
+
+let assetsSent = false;
+let assetsNextTry = 0;
+
+/**
+ * Send the page files from this copy of the repo to the world page, once after each start.
+ * That way `git pull && bash deploy/install.sh` on the server also updates lilguy.gokkehub.com.
+ */
+export async function publishAssets(url: string | undefined, token: string | undefined) {
+  if (assetsSent || !url || !token || Date.now() < assetsNextTry) return;
+  assetsNextTry = Date.now() + 3600_000; // on any failure, try again in an hour
+  try {
+    const dir = new URL("../../world/", import.meta.url);
+    const files: Record<string, string> = {};
+    for (const name of ["index.html", "app.js", "world.json"]) files[name] = readFileSync(new URL(name, dir), "utf8");
+    const res = await fetch(`${url.replace(/\/$/, "")}/assets`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+      body: JSON.stringify(files),
+      signal: AbortSignal.timeout(20_000),
+    });
+    if (res.status === 404) { console.log("The world page does not take page files yet; will try again in an hour."); return; }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    assetsSent = true;
+    console.log("World page files updated.");
+  } catch (e) {
+    console.error(`Could not update the world page files: ${(e as Error).message}`);
   }
 }

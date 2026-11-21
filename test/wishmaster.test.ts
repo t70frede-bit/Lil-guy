@@ -41,7 +41,7 @@ test("lonely lil guy asks Frederik, and approval cheers him up", async () => {
   const s = freshState();
   s.needs.company = 0.1;
   const asked: string[] = [];
-  const out: Outbox = { say: async () => {}, inform: async () => {}, ask: async w => { asked.push(w.item); } };
+  const out: Outbox = { say: async () => {}, inform: async () => {}, propose: async () => {}, askMore: async () => {}, ask: async w => { asked.push(w.item); } };
   await step(s, new RuleBrain(), out);
   assert.deepEqual(asked, ["Frederik to say hi"]);
   const before = s.needs.company;
@@ -52,7 +52,7 @@ test("lonely lil guy asks Frederik, and approval cheers him up", async () => {
 
 test("a day of rule-based life runs without errors and explores", async () => {
   const s = freshState();
-  const out: Outbox = { say: async () => {}, inform: async () => {}, ask: async () => {} };
+  const out: Outbox = { say: async () => {}, inform: async () => {}, propose: async () => {}, askMore: async () => {}, ask: async () => {} };
   for (let i = 0; i < 200; i++) {
     await step(s, new RuleBrain(), out);
     for (const p of [...s.pending]) resolveWish(s, p.id, i % 2 === 0);
@@ -63,7 +63,7 @@ test("a day of rule-based life runs without errors and explores", async () => {
 
 test("using a thing changes its state and feels new the first time", async () => {
   const s = freshState();
-  const out: Outbox = { say: async () => {}, inform: async () => {}, ask: async () => {} };
+  const out: Outbox = { say: async () => {}, inform: async () => {}, propose: async () => {}, askMore: async () => {}, ask: async () => {} };
   await doMove(s, { type: "use", target: "lamp", action: "switch on" }, out);
   assert.equal(s.objects.lamp, "on");
   assert.equal(s.place, "lamp");
@@ -76,7 +76,7 @@ test("using a thing changes its state and feels new the first time", async () =>
 
 test("going outside works and keeps the go: reward key", async () => {
   const s = freshState();
-  const out: Outbox = { say: async () => {}, inform: async () => {}, ask: async () => {} };
+  const out: Outbox = { say: async () => {}, inform: async () => {}, propose: async () => {}, askMore: async () => {}, ask: async () => {} };
   await doMove(s, { type: "go", target: "outside" }, out);
   assert.equal(s.place, "field");
   assert.equal(s.tried["go:field"], 1);
@@ -86,7 +86,7 @@ test("an approved wish for a place gets built outside, and its things can be use
   const s = freshState();
   s.needs.fulfilled = 0.1;
   const asked: string[] = [];
-  const out: Outbox = { say: async () => {}, inform: async () => {}, ask: async (w, why) => { asked.push(why); } };
+  const out: Outbox = { say: async () => {}, inform: async () => {}, propose: async () => {}, askMore: async () => {}, ask: async (w, why) => { asked.push(why); } };
   await doMove(s, { type: "wish", item: "somewhere to draw pictures", need: "fulfilled" }, out);
   assert.match(asked[0], /built in his world/);
   resolveWish(s, s.pending[0].id, true);
@@ -109,7 +109,7 @@ test("old saved places still work", () => {
 
 test("highlights keep firsts, wishes and builds, but not repeats", async () => {
   const s = freshState();
-  const out: Outbox = { async say() {}, async ask() {}, async inform() {} };
+  const out: Outbox = { async say() {}, async ask() {}, async inform() {}, async propose() {}, async askMore() {} };
   await doMove(s, { type: "use", target: "lamp", action: "switch on" }, out);
   await doMove(s, { type: "use", target: "lamp", action: "switch off" }, out);
   await doMove(s, { type: "use", target: "lamp", action: "switch on" }, out);
@@ -137,7 +137,7 @@ test("an older lil guy gets highlights picked from his diary", () => {
 
 test("a gift from the wishmaster becomes something he can use", async () => {
   const s = freshState();
-  const out: Outbox = { async say() {}, async ask() {}, async inform() {} };
+  const out: Outbox = { async say() {}, async ask() {}, async inform() {}, async propose() {}, async askMore() {} };
   s.needs = { ...s.needs, energy: 0.1 };
   await doMove(s, { type: "wish", item: "a warm blanket", need: "energy", reason: "I am cold and tired" } as any, out);
   assert.ok(s.items.includes("a warm blanket"));
