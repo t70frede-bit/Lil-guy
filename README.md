@@ -30,21 +30,27 @@ DRY_RUN=1 TICK_SECONDS=5 npm run dev   # runs with simple rules, prints to the c
 
 Add `TELEGRAM_BOT_TOKEN` to talk to him on Telegram, and `ANTHROPIC_API_KEY` (with `DRY_RUN=0`) to give him a real brain.
 
-## Put him on a server (Hetzner, Ubuntu 24.04)
+## Put him on a server (Hetzner, Ubuntu 24.04 or 26.04)
 
-```bash
-# on the server, as root
-curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt-get install -y nodejs git
-useradd --system --create-home lilguy
-git clone https://github.com/t70frede-bit/lil-guy /opt/lil-guy && cd /opt/lil-guy
-npm ci && npm run build
-cp .env.example .env && nano .env      # paste the keys here, on the server only
-chmod 600 .env && chown -R lilguy:lilguy /opt/lil-guy
-cp deploy/lilguy.service /etc/systemd/system/ && systemctl enable --now lilguy
-journalctl -u lilguy -f                # watch his diary
-```
+1. Create the server in Hetzner Cloud (Ubuntu 26.04, the cheapest size is plenty). Hetzner emails you the root password.
+2. Connect from your own computer's terminal, so you can paste: `ssh root@YOUR_SERVER_IP` (Windows: PowerShell; Mac: Terminal). Type the emailed password; Hetzner then asks you to choose a new one.
+3. Run the installer. If the repo is public:
 
-Then send `/start` to your bot on Telegram.
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/t70frede-bit/Lil-guy/main/deploy/install.sh -o install.sh && bash install.sh
+   ```
+
+   If the repo is private, make a fine-grained GitHub token with read-only Contents access to this repo first, then:
+
+   ```bash
+   read -rs T && curl -fsSL -H "Authorization: Bearer $T" https://raw.githubusercontent.com/t70frede-bit/Lil-guy/main/deploy/install.sh -o install.sh && bash install.sh
+   ```
+
+   (paste the token after the first line; it is hidden). The installer asks for the token again to download the code.
+4. The installer installs Node.js, builds and tests lil guy, asks for your Telegram bot token and Anthropic key (hidden, stored only in `/opt/lil-guy/.env`), and starts him as a service.
+5. Send `/start` to your bot on Telegram.
+
+Useful later: `journalctl -u lilguy -f` (watch his diary), `systemctl restart lilguy`, and `bash /opt/lil-guy/deploy/install.sh` again to update to the newest code.
 
 ## Costs
 
