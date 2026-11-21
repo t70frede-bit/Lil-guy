@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#ead7c3">
 <title>Lil guy's world</title>
 <meta name="description" content="A small creature with needs, moods and a lot of questions, live.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='34' r='26' fill='%23ffc857'/%3E%3Cellipse cx='23' cy='30' rx='4' ry='6' fill='%232a2433'/%3E%3Cellipse cx='41' cy='30' rx='4' ry='6' fill='%232a2433'/%3E%3Cpath d='M22 43q10 7 20 0' stroke='%232a2433' stroke-width='4' fill='none' stroke-linecap='round'/%3E%3C/svg%3E">
@@ -11,102 +12,154 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Inter:wght@400;500;600&display=swap">
 <style>
 :root {
-  --bg: #f3f1f7; --panel: #ffffff; --ink: #2a2433; --muted: #6b6478; --line: #e1dceb;
-  --accent: #6a4fd8; --good: #2f8f5b; --warn: #b7791f; --track: #ece8f3;
+  --glass: rgb(255 255 255 / .82); --ink: #2a2433; --muted: #6b6478; --line: rgb(42 36 51 / .12);
+  --accent: #6a4fd8; --good: #2f8f5b; --warn: #b7791f; --track: rgb(42 36 51 / .1);
   --display: "Fredoka", "Trebuchet MS", system-ui, sans-serif;
   --body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
-  color-scheme: light;
+  --gap: 12px; color-scheme: light;
+  --top: max(var(--gap), env(safe-area-inset-top)); --bottom: max(var(--gap), env(safe-area-inset-bottom));
+  --left: max(var(--gap), env(safe-area-inset-left)); --right: max(var(--gap), env(safe-area-inset-right));
 }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
-  --bg: #17141d; --panel: #211d29; --ink: #eeeaf5; --muted: #a59eb3; --line: #342e3f;
-  --accent: #a48cff; --good: #5cc48a; --warn: #e0a548; --track: #2d2737; color-scheme: dark; } }
+  --glass: rgb(33 29 41 / .84); --ink: #eeeaf5; --muted: #a59eb3; --line: rgb(255 255 255 / .12);
+  --accent: #a48cff; --good: #5cc48a; --warn: #e0a548; --track: rgb(255 255 255 / .12); color-scheme: dark; } }
 :root[data-theme="dark"] {
-  --bg: #17141d; --panel: #211d29; --ink: #eeeaf5; --muted: #a59eb3; --line: #342e3f;
-  --accent: #a48cff; --good: #5cc48a; --warn: #e0a548; --track: #2d2737; color-scheme: dark; }
+  --glass: rgb(33 29 41 / .84); --ink: #eeeaf5; --muted: #a59eb3; --line: rgb(255 255 255 / .12);
+  --accent: #a48cff; --good: #5cc48a; --warn: #e0a548; --track: rgb(255 255 255 / .12); color-scheme: dark; }
 * { box-sizing: border-box; }
-html, body { margin: 0; }
-body { background: var(--bg); color: var(--ink); font: 14px/1.5 var(--body); -webkit-text-size-adjust: 100%; }
-.wrap { max-width: 1120px; margin: 0 auto; display: grid; gap: 16px;
-  padding: max(20px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(32px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
-h1 { font: 600 28px/1.1 var(--display); margin: 0; }
-.live { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--muted);
-  padding: 4px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); }
+html, body { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none; }
+body { background: #ead7c3; color: var(--ink); font: 14px/1.5 var(--body); -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; }
+#stage { position: fixed; inset: 0; }
+#stage canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+.glass { background: var(--glass); border: 1px solid var(--line); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); box-shadow: 0 4px 18px rgb(0 0 0 / .12); }
+
+/* Top-left: name, live dot, mini needs */
+.status { position: fixed; top: var(--top); left: var(--left); border-radius: 18px; padding: 10px 14px 12px; display: grid; gap: 8px; width: 190px; }
+.status h1 { font: 600 20px/1 var(--display); margin: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.live { display: inline-flex; align-items: center; gap: 6px; font: 600 11px var(--body); color: var(--muted); white-space: nowrap; }
 .live i { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
-.live.on i { background: var(--good); box-shadow: 0 0 0 0 var(--good); animation: pulse 2s infinite; }
+.live.on i { background: var(--good); animation: pulse 2s infinite; }
 .live.stale i { background: var(--warn); }
-@keyframes pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--good) 60%, transparent); } 100% { box-shadow: 0 0 0 10px transparent; } }
-@media (prefers-reduced-motion: reduce) { .live.on i { animation: none; } }
-.grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 16px; align-items: start; }
-@media (max-width: 860px) { .grid { grid-template-columns: minmax(0, 1fr); } }
-.stage { position: relative; border-radius: 16px; overflow: hidden; border: 1px solid var(--line); aspect-ratio: 4 / 3; background: #efe6dc; }
-@media (max-width: 560px) { .stage { aspect-ratio: 1 / 1; } }
-.stage canvas { display: block; width: 100%; height: 100%; }
-.bubble { position: absolute; left: 50%; top: 12px; transform: translateX(-50%); width: max-content; max-width: min(88%, 440px);
-  background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 14px; padding: 8px 14px;
-  font: 500 15px/1.35 var(--display); text-align: center; box-shadow: 0 2px 10px rgb(0 0 0 / .1); transition: opacity .4s; }
-.bubble:empty { opacity: 0; }
-.chips { position: absolute; left: 10px; bottom: 10px; right: 10px; display: flex; gap: 6px; flex-wrap: wrap; }
-.chip { font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 999px; background: var(--panel); border: 1px solid var(--line); }
-.side { display: grid; gap: 16px; min-width: 0; }
-.card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 16px; display: grid; gap: 12px; min-width: 0; }
-.card h2 { font: 600 18px var(--display); margin: 0; }
-.need { display: grid; grid-template-columns: 84px minmax(0, 1fr) 40px; gap: 10px; align-items: center; font-size: 13px; }
-.need span:first-child { font-weight: 500; }
-.bar { height: 8px; border-radius: 99px; background: var(--track); overflow: hidden; }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--good) 60%, transparent); } 100% { box-shadow: 0 0 0 8px transparent; } }
+.mini { display: grid; gap: 5px; }
+.mini > div { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 6px; align-items: center; font-size: 11px; color: var(--muted); }
+.bar { height: 6px; border-radius: 99px; background: var(--track); overflow: hidden; }
 .bar b { display: block; height: 100%; width: 0; border-radius: 99px; background: var(--accent); transition: width .8s ease; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.chip { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); }
+
+/* Speech bubble */
+.bubble { position: fixed; left: 50%; top: var(--top); transform: translateX(-50%); width: max-content; max-width: min(46vw, 460px);
+  border-radius: 16px; padding: 10px 16px; font: 500 16px/1.35 var(--display); text-align: center; transition: opacity .4s; }
+.bubble:empty { opacity: 0; pointer-events: none; }
+
+/* Dock of buttons */
+.dock { position: fixed; left: 50%; bottom: var(--bottom); transform: translateX(-50%); display: flex; gap: 6px; padding: 6px; border-radius: 22px; }
+.dock button { display: grid; justify-items: center; gap: 2px; min-width: 64px; padding: 8px 10px 6px; border: 0; border-radius: 16px;
+  background: transparent; color: var(--ink); font: 600 11px var(--body); cursor: pointer; }
+.dock button svg { width: 22px; height: 22px; }
+.dock button:hover { background: var(--track); }
+.dock button[aria-expanded="true"] { background: var(--accent); color: #fff; }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Panels */
+.panel { position: fixed; right: var(--right); top: var(--top); bottom: calc(var(--bottom) + 84px); width: min(360px, calc(100vw - 2 * var(--gap)));
+  border-radius: 20px; padding: 16px; display: flex; flex-direction: column; gap: 12px; transition: transform .25s ease, opacity .25s ease; }
+.panel[hidden] { display: flex !important; opacity: 0; transform: translateX(24px); pointer-events: none; visibility: hidden; }
+.panel header { display: flex; align-items: center; justify-content: space-between; }
+.panel h2 { font: 600 20px var(--display); margin: 0; }
+.panel .close { border: 0; background: var(--track); color: var(--ink); width: 32px; height: 32px; border-radius: 50%; font: 600 18px/1 var(--body); cursor: pointer; }
+.panel .body { overflow-y: auto; min-height: 0; display: grid; gap: 10px; align-content: start; }
+.need { display: grid; grid-template-columns: 84px minmax(0, 1fr) 38px; gap: 10px; align-items: center; font-size: 13px; }
+.need .bar { height: 8px; }
 .need output { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; font-size: 12px; }
+.facts { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 13px; margin: 4px 0 0; }
+.facts dt { color: var(--muted); } .facts dd { margin: 0; }
 .things { display: flex; flex-wrap: wrap; gap: 6px; }
-.things .chip { font-weight: 500; }
-.diary { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; max-height: 360px; overflow-y: auto; }
-.diary li { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 8px; font-size: 13px; overflow-wrap: anywhere; }
+.things .chip { font-size: 13px; font-weight: 500; padding: 4px 10px; }
+.diary { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.diary li { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 8px; font-size: 13px; overflow-wrap: anywhere; }
 .diary time { color: var(--muted); font-variant-numeric: tabular-nums; }
 .empty { color: var(--muted); font-size: 13px; margin: 0; }
-.legend { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
-.legend div { border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; background: var(--panel); }
+.legend { display: grid; gap: 8px; }
+.legend div { border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; }
 .legend b { font: 600 14px var(--display); display: block; }
-.legend span { color: var(--muted); font-size: 12px; }
-footer { color: var(--muted); font-size: 12px; }
+.legend span, .note { color: var(--muted); font-size: 12px; }
+
+/* Phones: bubble under the status card, panels become bottom sheets */
+@media (max-width: 640px) {
+  .status { width: auto; right: var(--right); grid-template-columns: 1fr; padding: 8px 12px 10px; gap: 6px; }
+  .mini { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+  .mini > div { grid-template-columns: 1fr; gap: 3px; justify-items: center; }
+  .mini .bar { width: 100%; }
+  .bubble { top: calc(var(--top) + 108px); max-width: calc(100vw - 2 * var(--gap) - 16px); font-size: 15px; }
+  .dock { left: var(--left); right: var(--right); transform: none; justify-content: space-between; }
+  .dock button { flex: 1; min-width: 0; }
+  .panel { left: var(--left); right: var(--right); width: auto; top: auto; bottom: calc(var(--bottom) + 76px); max-height: 58vh; }
+  .panel[hidden] { transform: translateY(24px); }
+}
+@media (prefers-reduced-motion: reduce) { .live.on i { animation: none; } .panel { transition: none; } }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <h1>Lil guy's world</h1>
-    <span class="live" id="live"><i></i><span id="liveText">Connecting</span></span>
-  </header>
+<div id="stage"></div>
 
-  <div class="grid">
-    <div style="display:grid; gap:12px; min-width:0">
-      <div class="stage" id="stage">
-        <div class="bubble" id="bubble"></div>
-        <div class="chips"><span class="chip" id="placeChip">In his room</span><span class="chip" id="moodChip">Content</span></div>
-      </div>
-      <div class="legend">
-        <div><b>Ball</b><span>content or curious, rolls to get places</span></div>
-        <div><b>Spiky ball</b><span>feisty, after a no or a bad day</span></div>
-        <div><b>Cube</b><span>lonely, waiting for company</span></div>
-        <div><b>Droopy ball</b><span>sleepy, needs a nap</span></div>
-      </div>
-    </div>
+<section class="status glass" aria-label="Lil guy right now">
+  <h1>Lil guy <span class="live" id="live"><i></i><span id="liveText">Connecting</span></span></h1>
+  <div class="mini" id="mini"></div>
+  <div class="chips"><span class="chip" id="placeChip">In his room</span><span class="chip" id="moodChip">Content</span></div>
+</section>
 
-    <div class="side">
-      <section class="card">
-        <h2>How he feels</h2>
-        <div id="needs"></div>
-      </section>
-      <section class="card">
-        <h2>His things</h2>
-        <div class="things" id="things"><p class="empty">Nothing yet.</p></div>
-      </section>
-      <section class="card">
-        <h2>Lately</h2>
-        <ul class="diary" id="diary"><li><time></time><span class="empty">Waiting to hear from him.</span></li></ul>
-      </section>
+<div class="bubble glass" id="bubble" aria-live="polite"></div>
+
+<nav class="dock glass" aria-label="Panels">
+  <button type="button" data-panel="stats" aria-expanded="false" aria-controls="p-stats">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 20V11M12 20V4M19 20v-6"/></svg>Stats</button>
+  <button type="button" data-panel="things" aria-expanded="false" aria-controls="p-things">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 8l8-4 8 4v8l-8 4-8-4z"/><path d="M4 8l8 4 8-4M12 12v8"/></svg>Things</button>
+  <button type="button" data-panel="diary" aria-expanded="false" aria-controls="p-diary">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h11a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H6z"/><path d="M6 3v18M10 8h5M10 12h5"/></svg>Diary</button>
+  <button type="button" data-panel="about" aria-expanded="false" aria-controls="p-about">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg>About</button>
+</nav>
+
+<section class="panel glass" id="p-stats" hidden aria-label="Stats">
+  <header><h2>How he feels</h2><button class="close" type="button" aria-label="Close">&times;</button></header>
+  <div class="body">
+    <div id="needs"></div>
+    <dl class="facts">
+      <dt>Where</dt><dd id="fWhere">Somewhere in his room</dd>
+      <dt>Mood</dt><dd id="fMood">Content</dd>
+      <dt>Shape</dt><dd id="fShape">Ball</dd>
+      <dt>Thoughts</dt><dd id="fTicks">0</dd>
+      <dt>Last heard</dt><dd id="fHeard">Not yet</dd>
+    </dl>
+  </div>
+</section>
+
+<section class="panel glass" id="p-things" hidden aria-label="Things">
+  <header><h2>His things</h2><button class="close" type="button" aria-label="Close">&times;</button></header>
+  <div class="body"><div class="things" id="things"><p class="empty">Nothing yet.</p></div>
+  <p class="note">Things he wished for and got from the wishmaster or from Frederik.</p></div>
+</section>
+
+<section class="panel glass" id="p-diary" hidden aria-label="Diary">
+  <header><h2>Diary</h2><button class="close" type="button" aria-label="Close">&times;</button></header>
+  <div class="body"><ul class="diary" id="diary"><li><time></time><span class="empty">Waiting to hear from him.</span></li></ul></div>
+</section>
+
+<section class="panel glass" id="p-about" hidden aria-label="About">
+  <header><h2>About lil guy</h2><button class="close" type="button" aria-label="Close">&times;</button></header>
+  <div class="body">
+    <p class="note" style="font-size:13px; margin:0">A small creature who lives on a little server and thinks every few minutes. Nobody steers him: he picks what to do from how he feels. His shape shows his mood.</p>
+    <div class="legend">
+      <div><b>Ball</b><span>content or curious, rolls to get places</span></div>
+      <div><b>Spiky ball</b><span>feisty, after a no or a bad day</span></div>
+      <div><b>Cube</b><span>lonely, waiting for company</span></div>
+      <div><b>Droopy ball</b><span>sleepy, needs a nap</span></div>
     </div>
   </div>
-  <footer>He lives on a small server and thinks every few minutes. This page checks on him by itself.</footer>
-</div>
+</section>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
@@ -116,15 +169,30 @@ footer { color: var(--muted); font-size: 12px; }
   const $ = id => document.getElementById(id);
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+  // ---------- HUD panels ----------
+  const buttons = [...document.querySelectorAll('.dock button')];
+  let openPanel = null;
+  function show(name) {
+    openPanel = openPanel === name ? null : name;
+    buttons.forEach(b => b.setAttribute('aria-expanded', String(b.dataset.panel === openPanel)));
+    document.querySelectorAll('.panel').forEach(p => { p.hidden = p.id !== 'p-' + openPanel; });
+  }
+  buttons.forEach(b => b.addEventListener('click', () => show(b.dataset.panel)));
+  document.querySelectorAll('.panel .close').forEach(b => b.addEventListener('click', () => show(openPanel)));
+  addEventListener('keydown', e => { if (e.key === 'Escape' && openPanel) show(openPanel); });
+
   // ---------- Live state from his server ----------
   const PLACE_X = { bed: -3.4, shelf: -1.7, rug: 0, window: 1.7, doorstep: 3.4 };
   const PLACE_TEXT = { bed: 'In his sock bed', shelf: 'By the bookshelf', rug: 'On the rug', window: 'On the windowsill', doorstep: 'At the doorstep' };
-  const NEEDS = [['energy', 'Energy'], ['curiosity', 'Curiosity'], ['company', 'Company'], ['feisty', 'Feistiness'], ['fulfilled', 'Fulfilled']];
+  const NEEDS = [['energy', 'Energy', 'E'], ['curiosity', 'Curiosity', 'C'], ['company', 'Company', 'Co'], ['feisty', 'Feistiness', 'F'], ['fulfilled', 'Fulfilled', 'Fu']];
   const S = { needs: { energy: 0.8, curiosity: 0.55, company: 0.7, feisty: 0.1, fulfilled: 0.5 }, sleeping: false, place: 'rug', mood: 'content' };
   let homeX = 0, targetX = 0, travelling = false, wanderTimer = 3;
 
   $('needs').innerHTML = NEEDS.map(([k, label]) =>
     '<div class="need"><span>' + label + '</span><div class="bar"><b id="b-' + k + '"></b></div><output id="o-' + k + '"></output></div>').join('');
+  $('mini').innerHTML = NEEDS.map(([k, label, short]) =>
+    '<div title="' + label + '"><span>' + short + '</span><div class="bar"><b id="m-' + k + '"></b></div></div>').join('');
+  document.querySelectorAll('#mini > div').forEach((d, i) => d.setAttribute('aria-label', NEEDS[i][1]));
 
   function timeAgo(ms) {
     const m = Math.round(ms / 60000);
@@ -142,12 +210,18 @@ footer { color: var(--muted); font-size: 12px; }
     if (!d || !d.needs) return;
     S.needs = d.needs; S.sleeping = !!d.sleeping; S.mood = d.mood || 'content';
     if (d.place in PLACE_X && d.place !== S.place) { S.place = d.place; homeX = targetX = PLACE_X[d.place]; travelling = true; }
-    else if (d.place in PLACE_X && lastAt === null) { S.place = d.place; homeX = targetX = PLACE_X[d.place]; guyX = homeX; }
+    else if (d.place in PLACE_X && lastAt === null) { S.place = d.place; homeX = targetX = PLACE_X[d.place]; guyX = homeX; camX = homeX; }
     lastAt = d.at; tickSeconds = d.tickSeconds || 180;
 
-    NEEDS.forEach(([k]) => { const v = Math.round(clamp(d.needs[k] ?? 0) * 100); $('b-' + k).style.width = v + '%'; $('o-' + k).textContent = v + '%'; });
-    $('placeChip').textContent = d.paused ? 'Paused' : (PLACE_TEXT[d.place] || 'In his room');
-    $('moodChip').textContent = cap(S.sleeping ? 'asleep' : S.mood) + ', ' + (d.shape || 'ball');
+    NEEDS.forEach(([k]) => {
+      const v = Math.round(clamp(d.needs[k] ?? 0) * 100);
+      $('b-' + k).style.width = v + '%'; $('m-' + k).style.width = v + '%'; $('o-' + k).textContent = v + '%';
+    });
+    const where = d.paused ? 'Paused' : (PLACE_TEXT[d.place] || 'In his room');
+    const moodText = cap(S.sleeping ? 'asleep' : S.mood);
+    $('placeChip').textContent = where; $('moodChip').textContent = moodText;
+    $('fWhere').textContent = where; $('fMood').textContent = moodText; $('fShape').textContent = cap(d.shape || 'ball');
+    $('fTicks').textContent = String(d.ticks || 0);
 
     const things = $('things'); things.textContent = '';
     if (!d.items || !d.items.length) things.innerHTML = '<p class="empty">Nothing yet.</p>';
@@ -168,8 +242,9 @@ footer { color: var(--muted); font-size: 12px; }
     el.className = 'live';
     if (!lastAt) { txt.textContent = 'Not connected yet'; return; }
     const age = Date.now() - new Date(lastAt).getTime();
+    $('fHeard').textContent = timeAgo(age);
     if (age < (tickSeconds * 2 + 90) * 1000) { el.classList.add('on'); txt.textContent = 'Live'; }
-    else { el.classList.add('stale'); txt.textContent = 'Last heard from ' + timeAgo(age); }
+    else { el.classList.add('stale'); txt.textContent = 'Away'; }
   }
 
   async function poll() {
@@ -190,6 +265,7 @@ footer { color: var(--muted); font-size: 12px; }
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(36, 4 / 3, 0.1, 100);
   scene.add(new THREE.HemisphereLight(0xffffff, 0x9c8f86, 0.55));
+  const hemi = scene.children[0];
   const sun = new THREE.DirectionalLight(0xffffff, 0.55); sun.position.set(3, 6, 5); scene.add(sun);
 
   const grad = new THREE.DataTexture(new Uint8Array([120, 195, 255]), 3, 1, THREE.LuminanceFormat);
@@ -241,6 +317,9 @@ footer { color: var(--muted); font-size: 12px; }
     skyMat.color.set(day ? 0x9fd3ff : dusk ? 0xf0a679 : 0x1f2547);
     skyBall.material.color.set(day || dusk ? 0xffe27a : 0xf2f0e6);
     skyBall.scale.setScalar(day || dusk ? 1 : 0.8);
+    // the room gets a little dimmer and warmer at night
+    hemi.intensity = day ? 0.55 : dusk ? 0.5 : 0.42; sun.intensity = day ? 0.55 : dusk ? 0.45 : 0.32;
+    sun.color.set(day ? 0xffffff : 0xffe2b8);
   }
   setSky(); setInterval(setSky, 60000);
 
@@ -345,11 +424,11 @@ footer { color: var(--muted); font-size: 12px; }
   // ---------- Animation ----------
   let narrow = false;
   function resize() {
-    const w = stage.clientWidth, h = stage.clientHeight;
+    const w = innerWidth, h = innerHeight;
     renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
     narrow = camera.aspect < 1.2;
   }
-  new ResizeObserver(resize).observe(stage); resize();
+  addEventListener('resize', resize); resize();
 
   let guyX = 0, camX = 0, last = performance.now(), t = 0, faceTimer = 0;
   function frame(now) {
@@ -416,11 +495,11 @@ footer { color: var(--muted); font-size: 12px; }
     faceTimer -= dt; if (faceTimer <= 0) { faceTimer = 1 / 30; drawFace(); }
 
     // camera: whole room on wide screens, follows him on narrow ones
-    const want = narrow ? guyX * 0.85 : 0;
+    const want = narrow ? guyX * 0.9 : 0;
     camX = lerp(camX, want, 0.04);
     const tanH = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect;
-    const dist2 = narrow ? 2.4 / tanH + 2 : 4.6 / tanH;
-    camera.position.set(camX, 2.4, dist2); camera.lookAt(camX, 1.0, 0);
+    const dist2 = narrow ? clamp(1.7 / tanH, 6, 9.5) : clamp(4.6 / tanH, 6, 14);
+    camera.position.set(camX, narrow ? 2.0 : 2.4, dist2); camera.lookAt(camX, narrow ? 1.05 : 1.0, 0);
 
     renderer.render(scene, camera);
     requestAnimationFrame(frame);
