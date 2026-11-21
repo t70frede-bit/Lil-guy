@@ -98,7 +98,8 @@ chown -R lilguy:lilguy "$DIR"
 STEP="starting lil guy"; report "Step 5/5: $STEP"
 sed "s|/usr/bin/node|$(command -v node)|" deploy/lilguy.service > /etc/systemd/system/lilguy.service
 systemctl daemon-reload
-systemctl enable --now lilguy
+systemctl enable lilguy
+systemctl restart lilguy
 sleep 5
 if systemctl is-active --quiet lilguy; then
   report "Done. Lil guy is running. Send /start to the bot if you have not yet."
