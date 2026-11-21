@@ -4,6 +4,8 @@
 //   POST /state  his server sends a new state. The first token ever used is remembered
 //                (only its hash is stored); after that only that token is accepted.
 import PAGE from "./index.html";
+import APP from "./app.js";
+import WORLD from "./world.json";
 
 const MAX_BYTES = 64 * 1024;
 const json = (body, status = 200) => new Response(body, {
@@ -45,6 +47,12 @@ export default {
       return new Response(PAGE, {
         headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=60" },
       });
+    }
+    if (pathname === "/app.js") {
+      return new Response(APP, { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "public, max-age=60" } });
+    }
+    if (pathname === "/world.json") {
+      return new Response(WORLD, { headers: { "content-type": "application/json; charset=utf-8", "cache-control": "public, max-age=60" } });
     }
     return new Response("Not here. Lil guy lives at /", { status: 404 });
   },

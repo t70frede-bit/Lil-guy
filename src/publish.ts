@@ -2,6 +2,7 @@
 // Only what the page needs: no chat with Frederik, no Telegram details.
 
 import { mood, shape } from "./needs.js";
+import { findObject } from "./world.js";
 import type { State } from "./state.js";
 
 const PRIVATE = /^(Frederik said|Said to Frederik)/i;
@@ -15,6 +16,12 @@ export function snapshot(s: State, tickSeconds: number) {
     at: new Date().toISOString(),
     tickSeconds,
     place: s.place,
+    area: findObject(s, s.place)?.area ?? "home",
+    objects: s.objects,
+    built: s.built,
+    last: s.last,
+    uses: uses(s),
+    wishes: s.pending.map(p => p.item),
     sleeping: s.sleeping,
     paused: s.paused,
     mood: m,
@@ -26,6 +33,16 @@ export function snapshot(s: State, tickSeconds: number) {
       .map(d => ({ at: d.at, text: d.text.slice(0, 240) })),
     ticks: s.ticks,
   };
+}
+
+/** How many times he has done something with each thing, for the page's info cards. */
+function uses(s: State): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const [k, v] of Object.entries(s.tried)) {
+    const m = k.match(/^use:([^:]+):/);
+    if (m) out[m[1]] = (out[m[1]] ?? 0) + v;
+  }
+  return out;
 }
 
 let lastSent = 0;

@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { RuleBrain } from "../src/brain.js";
-import { resolveWish, step, type Outbox } from "../src/lilguy.js";
+import { build, doMove, resolveWish, step, type Outbox } from "../src/lilguy.js";
+import { findObject } from "../src/world.js";
 import { freshNeeds, mood, shape } from "../src/needs.js";
 import { freshState } from "../src/state.js";
 import { judge } from "../src/wishmaster.js";
@@ -56,4 +57,50 @@ test("a day of rule-based life runs without errors and explores", async () => {
   }
   assert.ok(Object.keys(s.tried).some(k => k.startsWith("go:")));
   for (const v of Object.values(s.needs)) assert.ok(v >= 0 && v <= 1);
+});
+
+test("using a thing changes its state and feels new the first time", async () => {
+  const s = freshState();
+  const out: Outbox = { say: async () => {}, inform: async () => {}, ask: async () => {} };
+  await doMove(s, { type: "use", target: "lamp", action: "switch on" }, out);
+  assert.equal(s.objects.lamp, "on");
+  assert.equal(s.place, "lamp");
+  assert.equal(s.last?.verb, "switch on");
+  await doMove(s, { type: "use", target: "lamp", action: "switch on" }, out); // not possible while on
+  assert.equal(s.tried["use:lamp:switch on"], 1);
+  await doMove(s, { type: "use", target: "the lamp", action: "switch off" }, out);
+  assert.equal(s.objects.lamp, "off");
+});
+
+test("going outside works and keeps the go: reward key", async () => {
+  const s = freshState();
+  const out: Outbox = { say: async () => {}, inform: async () => {}, ask: async () => {} };
+  await doMove(s, { type: "go", target: "outside" }, out);
+  assert.equal(s.place, "field");
+  assert.equal(s.tried["go:field"], 1);
+});
+
+test("an approved wish for a place gets built outside, and its things can be used", async () => {
+  const s = freshState();
+  s.needs.fulfilled = 0.1;
+  const asked: string[] = [];
+  const out: Outbox = { say: async () => {}, inform: async () => {}, ask: async (w, why) => { asked.push(why); } };
+  await doMove(s, { type: "wish", item: "somewhere to draw pictures", need: "fulfilled" }, out);
+  assert.match(asked[0], /built in his world/);
+  resolveWish(s, s.pending[0].id, true);
+  assert.equal(s.built.length, 1);
+  assert.equal(s.built[0].buildable, "artcorner");
+  await doMove(s, { type: "use", target: "easel", action: "paint" }, out);
+  assert.equal(s.objects.easel, "painted");
+});
+
+test("an approved wish for an unknown place still gets built", () => {
+  const s = freshState();
+  const b = build(s, "a tiny museum of pebbles");
+  assert.equal(b?.kind, "custom");
+  assert.ok(findObject(s, b!.id));
+});
+
+test("old saved places still work", () => {
+  for (const p of ["bed", "window", "rug", "shelf", "doorstep"]) assert.ok(findObject({ built: [] }, p), p);
 });

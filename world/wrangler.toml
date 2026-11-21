@@ -13,5 +13,5 @@ id = "c1a775e20c3d463cbd2ee48d990687f2"
 
 [[rules]]
 type = "Text"
-globs = ["**/*.html"]
+globs = ["**/*.html", "app.js", "world.json"]
 fallthrough = true

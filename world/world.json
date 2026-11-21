@@ -1,0 +1,109 @@
+{
+  "version": 1,
+  "areas": [
+    { "id": "home", "name": "his house", "desc": "his small cosy house with one room" },
+    { "id": "outside", "name": "outside", "desc": "empty grass outside his door that goes on and on. Nothing is built there yet, but things could be" }
+  ],
+  "objects": [
+    { "id": "bed", "name": "sock bed", "area": "home", "kind": "bed", "pos": [-2.8, -1.2], "state": "made", "desc": "A sock folded into a bed. Very warm.",
+      "actions": [
+        { "verb": "nap", "to": "messy", "effect": { "energy": 0.12 }, "line": "Napped in the sock bed." },
+        { "verb": "make the bed", "from": "messy", "to": "made", "effect": { "fulfilled": 0.06 }, "line": "Made the bed. Very neat." } ] },
+    { "id": "shelf", "name": "bookshelf", "area": "home", "kind": "shelf", "pos": [-1.0, -2.3], "state": "tidy", "desc": "Full of books he does not understand yet.",
+      "actions": [
+        { "verb": "pull out a book", "from": "tidy", "to": "a book is out", "effect": { "curiosity": -0.1 }, "line": "Pulled a book out of the shelf." },
+        { "verb": "look at the pictures", "from": "a book is out", "effect": { "curiosity": -0.15, "fulfilled": 0.05 }, "line": "Looked at the pictures in a book." },
+        { "verb": "put the book back", "from": "a book is out", "to": "tidy", "effect": { "fulfilled": 0.04 }, "line": "Put the book back." } ] },
+    { "id": "rug", "name": "rug", "area": "home", "kind": "rug", "pos": [0, 0.3], "state": "flat", "desc": "A big soft rug in the middle of the room.",
+      "actions": [
+        { "verb": "roll around", "effect": { "feisty": -0.1, "curiosity": -0.03 }, "line": "Rolled around on the rug." },
+        { "verb": "scrunch it up", "from": "flat", "to": "scrunched", "effect": { "feisty": -0.08 }, "line": "Scrunched the rug into a hill." },
+        { "verb": "flatten it", "from": "scrunched", "to": "flat", "effect": { "fulfilled": 0.04 }, "line": "Flattened the rug again." } ] },
+    { "id": "window", "name": "windowsill", "area": "home", "kind": "window", "pos": [1.6, -2.3], "state": "closed", "desc": "Light and birds happen out there.",
+      "actions": [
+        { "verb": "open", "from": "closed", "to": "open", "effect": { "curiosity": -0.05 }, "line": "Opened the window. Fresh air!" },
+        { "verb": "close", "from": "open", "to": "closed", "line": "Closed the window." },
+        { "verb": "watch the birds", "effect": { "curiosity": -0.1, "company": 0.03 }, "line": "Watched the birds outside." } ] },
+    { "id": "lamp", "name": "lamp", "area": "home", "kind": "lamp", "pos": [3.0, -2.0], "state": "off", "desc": "A lamp with a button. What does the button do?",
+      "actions": [
+        { "verb": "switch on", "from": "off", "to": "on", "effect": { "curiosity": -0.05 }, "line": "Switched the lamp on. Light!" },
+        { "verb": "switch off", "from": "on", "to": "off", "line": "Switched the lamp off." } ] },
+    { "id": "ball", "name": "toy ball", "area": "home", "kind": "ball", "pos": [-1.6, 1.4], "state": "here", "desc": "A ball that is bigger than him.",
+      "actions": [
+        { "verb": "kick", "effect": { "feisty": -0.2, "energy": -0.03 }, "line": "Kicked the toy ball. Take that!" },
+        { "verb": "hug", "effect": { "company": 0.04, "feisty": -0.05 }, "line": "Hugged the toy ball." } ] },
+    { "id": "doorstep", "name": "doorstep", "area": "home", "kind": "door", "pos": [3.6, 0.6], "state": "closed", "desc": "The door, where the outside begins.",
+      "actions": [
+        { "verb": "open the door", "from": "closed", "to": "open", "effect": { "curiosity": -0.04 }, "line": "Opened the door. So much outside!" },
+        { "verb": "close the door", "from": "open", "to": "closed", "line": "Closed the door." },
+        { "verb": "peek outside", "effect": { "curiosity": -0.06 }, "line": "Peeked outside. It is very big out there." } ] },
+    { "id": "field", "name": "empty field", "area": "outside", "kind": "field", "pos": [9, 0.5], "state": "empty", "desc": "Grass that goes on and on. Things could be built here.",
+      "actions": [
+        { "verb": "look around", "effect": { "curiosity": -0.08 }, "line": "Looked around the empty field. Lots of room for things." },
+        { "verb": "imagine what could be here", "effect": { "fulfilled": 0.05, "curiosity": 0.04 }, "line": "Imagined what could be built out here." } ] },
+    { "id": "stone", "name": "big stone", "area": "outside", "kind": "stone", "pos": [7.2, 3.2], "state": "still", "desc": "The only thing outside. It does not move.",
+      "actions": [
+        { "verb": "sit on it", "effect": { "energy": 0.04 }, "line": "Sat on the big stone." },
+        { "verb": "talk to it", "effect": { "company": 0.03 }, "line": "Talked to the stone. It listened very well." } ] }
+  ],
+  "plots": [[10, -3.5], [14.5, -3.5], [10, 4.5], [14.5, 4.5], [19, -3.5], [19, 4.5], [23.5, -3.5], [23.5, 4.5]],
+  "buildables": [
+    { "id": "artcorner", "name": "art corner", "keywords": ["art", "draw", "paint", "crayon", "easel", "studio", "pencil"], "meets": "fulfilled", "kind": "artcorner",
+      "desc": "An easel and a box of crayons, for making pictures.",
+      "objects": [
+        { "id": "easel", "name": "easel", "state": "blank", "desc": "A canvas on legs. It wants a picture.",
+          "actions": [
+            { "verb": "paint", "from": "blank", "to": "painted", "effect": { "fulfilled": 0.2, "curiosity": -0.1 }, "line": "Painted a picture on the easel!" },
+            { "verb": "start a new picture", "from": "painted", "to": "blank", "effect": { "curiosity": -0.04 }, "line": "Put up a fresh canvas." } ] } ] },
+    { "id": "cinema", "name": "little cinema", "keywords": ["cinema", "movie", "film", "theater", "theatre"], "meets": "curiosity", "kind": "cinema",
+      "desc": "A tiny cinema with a big screen and one seat.",
+      "objects": [
+        { "id": "screen", "name": "cinema screen", "state": "dark", "desc": "A big screen in a tiny cinema.",
+          "actions": [
+            { "verb": "watch a film", "from": "dark", "to": "showing a film", "effect": { "curiosity": -0.2, "energy": 0.04 }, "line": "Watched a film at his little cinema!" },
+            { "verb": "switch the film off", "from": "showing a film", "to": "dark", "line": "Switched the film off." } ] } ] },
+    { "id": "hangout", "name": "hangout hut", "keywords": ["hangout", "hang out", "hut", "den", "fort", "treehouse", "clubhouse", "hideout", "somewhere to hang"], "meets": "company", "kind": "hangout",
+      "desc": "A hut with a beanbag and fairy lights.",
+      "objects": [
+        { "id": "beanbag", "name": "beanbag", "state": "lights off", "desc": "A squishy beanbag under fairy lights.",
+          "actions": [
+            { "verb": "flop down", "effect": { "energy": 0.08, "feisty": -0.06 }, "line": "Flopped down on the beanbag." },
+            { "verb": "switch on the fairy lights", "from": "lights off", "to": "lights on", "effect": { "fulfilled": 0.06 }, "line": "Switched on the fairy lights. Cosy!" },
+            { "verb": "switch off the fairy lights", "from": "lights on", "to": "lights off", "line": "Switched off the fairy lights." } ] } ] },
+    { "id": "gamecorner", "name": "game corner", "keywords": ["game", "arcade", "console", "puzzle"], "meets": "curiosity", "kind": "gamecorner",
+      "desc": "An arcade machine with one big button.",
+      "objects": [
+        { "id": "arcade", "name": "arcade machine", "state": "idle", "desc": "An arcade machine with one big button.",
+          "actions": [
+            { "verb": "play a game", "effect": { "curiosity": -0.15, "feisty": -0.05 }, "line": "Played a game on the arcade machine!" },
+            { "verb": "make up a new game", "effect": { "fulfilled": 0.15, "curiosity": -0.08 }, "line": "Made up a brand new game." } ] } ] },
+    { "id": "garden", "name": "flower garden", "keywords": ["garden", "flower", "plant"], "meets": "fulfilled", "kind": "garden",
+      "desc": "A flower bed and a watering can.",
+      "objects": [
+        { "id": "flowers", "name": "flower bed", "state": "thirsty", "desc": "Flowers that droop when nobody waters them.",
+          "actions": [
+            { "verb": "water", "from": "thirsty", "to": "blooming", "effect": { "fulfilled": 0.15 }, "line": "Watered the flowers. They perked up!" },
+            { "verb": "smell", "effect": { "curiosity": -0.06 }, "line": "Smelled the flowers. Achoo." } ] } ] },
+    { "id": "pond", "name": "little pond", "keywords": ["pond", "lake", "duck"], "meets": "curiosity", "kind": "pond",
+      "desc": "A small pond. A duck might move in.",
+      "objects": [
+        { "id": "pondwater", "name": "little pond", "state": "still", "desc": "A small pond. Do not roll in.",
+          "actions": [
+            { "verb": "skip a stone", "effect": { "curiosity": -0.1, "fulfilled": 0.05 }, "line": "Skipped a stone. One hop!" },
+            { "verb": "look at his reflection", "effect": { "company": 0.04 }, "line": "Looked at the little guy in the pond. He looked back." } ] } ] },
+    { "id": "friendhouse", "name": "house for a friend", "keywords": ["friend", "buddy", "pal", "neighbour", "neighbor", "companion"], "meets": "company", "kind": "friendhouse",
+      "desc": "A little house next door, waiting for a friend to move in.",
+      "objects": [
+        { "id": "frienddoor", "name": "friend's door", "state": "nobody home yet", "desc": "A door with a welcome mat. Nobody lives here yet.",
+          "actions": [
+            { "verb": "knock", "effect": { "company": 0.04, "curiosity": -0.04 }, "line": "Knocked on the friend's door. Nobody home yet." },
+            { "verb": "tidy the welcome mat", "effect": { "fulfilled": 0.06 }, "line": "Tidied the welcome mat for whoever moves in." } ] } ] }
+  ],
+  "custom": {
+    "kind": "custom",
+    "desc": "Something Frederik said yes to. It is still being figured out.",
+    "actions": [
+      { "verb": "spend time there", "effect": { "fulfilled": 0.08, "curiosity": -0.08 }, "line": "Spent some time at his new place." },
+      { "verb": "look closer", "effect": { "curiosity": -0.06 }, "line": "Looked closely at his new place." } ]
+  }
+}
