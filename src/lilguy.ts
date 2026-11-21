@@ -4,8 +4,8 @@
 import { randomUUID } from "node:crypto";
 import type { Brain } from "./brain.js";
 import { clamp, drift, mood, shape, sleepTick, type NeedName, type Needs } from "./needs.js";
-import { note, type PendingWish, type State } from "./state.js";
-import { moveEffect, noveltyReward, PLACE_NAMES, type Move, type Place } from "./world.js";
+import { highlight, note, type PendingWish, type State } from "./state.js";
+import { availableActions, findAction, findBuildable, findObject, isBuildWish, moveEffect, noveltyReward, PLOTS, type Built, type Move } from "./world.js";
 import { applyEffect, judge } from "./wishmaster.js";
 
 export const MAX_MESSAGES_PER_DAY = 12;
@@ -55,22 +55,54 @@ export async function step(s: State, brain: Brain, out: Outbox): Promise<void> {
   for (const move of decision.moves.slice(0, 3)) await doMove(s, move as Move & { reason?: string }, out);
 
   const after = mood(s.needs, s.sleeping);
-  if (after !== before) note(s, `Mood changed from ${before} to ${after}; he is now a ${shape(after)}.`);
+  if (after !== before) {
+    note(s, `Mood changed from ${before} to ${after}; he is now a ${shape(after)}.`);
+    const line = MOOD_LINES[after] ?? (before === "feisty" || before === "lonely" ? "Cheered up and became a round ball again." : undefined);
+    if (line) highlight(s, "mood", line);
+  }
 }
+
+const MOOD_LINES: Record<string, string> = {
+  feisty: "Got feisty and turned into a spiky ball.",
+  lonely: "Felt lonely and turned into a cube.",
+};
 
 export async function doMove(s: State, move: Move & { reason?: string }, out: Outbox) {
   switch (move.type) {
     case "wait": note(s, "Waited and watched."); break;
     case "rest": s.needs = moveEffect("rest", s.needs); note(s, "Rested for a bit."); break;
-    case "sleep": s.sleeping = true; note(s, "Fell asleep."); break;
+    case "sleep": s.sleeping = true; s.place = "bed"; note(s, "Crawled into the sock bed and fell asleep."); break;
     case "go": {
-      const place = PLACE_NAMES.find(p => move.target?.toLowerCase().includes(p));
-      if (!place) { note(s, `Tried to go to "${move.target}", which is not a place he knows.`); break; }
-      if (place === s.place) { note(s, `Is already at the ${place}.`); break; }
-      s.place = place as Place;
+      const obj = findObject(s, move.target);
+      if (!obj) { note(s, `Tried to go to "${move.target}", which is not somewhere he knows.`); break; }
+      if (obj.id === s.place) { note(s, `Is already at the ${obj.name}.`); break; }
+      const wasOutside = findObject(s, s.place)?.area === "outside";
+      s.place = obj.id;
       s.needs = moveEffect("go", s.needs);
-      const first = reward(s, `go:${place}`);
-      note(s, `${first ? "Went to the " + place + " for the first time!" : "Went to the " + place + "."}`);
+      const first = reward(s, `go:${obj.id}`);
+      const door = obj.area === "outside" && !wasOutside ? "Went outside to " : obj.area === "home" && wasOutside ? "Came back inside to " : "Went to ";
+      note(s, `${door}the ${obj.name}${first ? " for the first time!" : "."}`);
+      if (first) highlight(s, "first", obj.area === "outside" && !s.highlights.some(h => /outside/i.test(h.text)) ? `Went outside for the very first time, to the ${obj.name}!` : `Went to the ${obj.name} for the first time.`);
+      break;
+    }
+    case "use": {
+      const obj = findObject(s, move.target);
+      if (!obj) { note(s, `Wanted to use "${move.target}", but there is no such thing here.`); break; }
+      const action = findAction(s, obj, move.action);
+      if (!action) {
+        const can = availableActions(s, obj).map(a => a.verb).join(", ");
+        note(s, `Wanted to ${move.action ?? "do something with"} the ${obj.name}, but could only ${can || "look at it"}.`);
+        break;
+      }
+      if (s.place !== obj.id) { s.place = obj.id; reward(s, `go:${obj.id}`); }
+      if (action.to) s.objects[obj.id] = action.to;
+      s.needs = moveEffect("use", s.needs);
+      if (action.effect) s.needs = applyEffect(s.needs, action.effect);
+      const firstWithIt = !Object.keys(s.tried).some(k => k.startsWith(`use:${obj.id}:`));
+      const first = reward(s, `use:${obj.id}:${action.verb}`);
+      s.last = { object: obj.id, verb: action.verb, line: action.line, at: new Date().toISOString() };
+      note(s, `${action.line}${first ? " (new!)" : ""}`);
+      if (firstWithIt) highlight(s, "first", `First time: ${action.line}`);
       break;
     }
     case "look_closer":
@@ -88,6 +120,7 @@ export async function doMove(s: State, move: Move & { reason?: string }, out: Ou
       countMessage(s);
       s.needs = moveEffect("message", s.needs);
       note(s, `Said to Frederik: ${text}`);
+      highlight(s, "chat", "Sent Frederik a message.");
       await out.say(text);
       break;
     }
@@ -111,6 +144,7 @@ async function wish(s: State, move: Move & { reason?: string }, out: Outbox) {
     s.needs = applyEffect(s.needs, verdict.thing.effect);
     if (!s.items.includes(verdict.thing.name)) s.items.push(verdict.thing.name);
     note(s, `Wished for ${item}. The wishmaster gave him ${verdict.thing.name}: ${verdict.why}`);
+    highlight(s, "gift", `Wished for ${item} and the wishmaster gave him ${verdict.thing.name}.`);
     if (canMessage(s)) { countMessage(s); await out.inform(`Lil guy needed something and got ${verdict.thing.name} for free (${verdict.why})`); }
     return;
   }
@@ -119,7 +153,8 @@ async function wish(s: State, move: Move & { reason?: string }, out: Outbox) {
   const pending: PendingWish = { id: randomUUID().slice(0, 8), item, need: w.need, reason: w.reason, at: new Date().toISOString() };
   s.pending.push(pending);
   note(s, `Wished for ${item}. The wishmaster asked Frederik.`);
-  await out.ask(pending, verdict.why);
+  highlight(s, "wish", w.reason ? `Wished for ${item}: "${w.reason.slice(0, 140)}"` : `Wished for ${item}.`);
+  await out.ask(pending, isBuildWish(item) ? `${verdict.why} If you say yes, it gets built in his world.` : verdict.why);
 }
 
 /** Frederik pressed Approve or Not now on a wish. */
@@ -132,17 +167,35 @@ export function resolveWish(s: State, id: string, approved: boolean): PendingWis
     const fix: Partial<Needs> = need === "feisty" ? { feisty: -0.4 } : need === "energy" ? { energy: 0.4 } : need === "curiosity" ? { curiosity: -0.4 } : need ? { [need]: 0.5 } : {};
     s.needs = applyEffect(s.needs, fix);
     s.needs = applyEffect(s.needs, { fulfilled: 0.15, company: 0.1 });
-    if (!/frederik|say hi|visit|company/i.test(p.item) && !s.items.includes(p.item)) s.items.push(p.item);
-    note(s, `Frederik said yes to ${p.item}!`);
+    const built = isBuildWish(p.item) ? build(s, p.item) : undefined;
+    if (built) { note(s, `Frederik said yes! A ${built.name} was built outside.`); highlight(s, "built", `Frederik said yes, and ${/^[aeiou]/i.test(built.name) ? "an" : "a"} ${built.name} was built outside!`); }
+    else {
+      if (!/frederik|say hi|visit|company/i.test(p.item) && !s.items.includes(p.item)) s.items.push(p.item);
+      note(s, `Frederik said yes to ${p.item}!`);
+      highlight(s, "yes", `Frederik said yes to ${p.item}!`);
+    }
   } else {
     s.needs = applyEffect(s.needs, { feisty: 0.25 });
     note(s, `Frederik said not now to ${p.item}.`);
+    highlight(s, "no", `Frederik said not now to ${p.item}.`);
   }
   return p;
+}
+
+/** Put an approved place on the next free plot outside. */
+export function build(s: State, item: string): Built | undefined {
+  const def = findBuildable(item);
+  if (def && s.built.some(b => b.buildable === def.id)) return undefined; // already has one
+  const name = (def?.name ?? item.replace(/^(a|an|some|the|my|his)\s+/i, "")).slice(0, 60);
+  const id = def?.id ?? `custom-${randomUUID().slice(0, 6)}`;
+  const b: Built = { id, name, kind: def?.kind ?? "custom", plot: s.built.length % Math.max(PLOTS, 1), at: new Date().toISOString(), ...(def ? { buildable: def.id } : {}) };
+  s.built.push(b);
+  return b;
 }
 
 /** Frederik wrote to him. */
 export function heardFromFrederik(s: State) {
   s.needs = { ...s.needs, company: clamp(s.needs.company + 0.25), feisty: clamp(s.needs.feisty - 0.1) };
+  highlight(s, "chat", "Frederik came by to talk.");
   if (s.sleeping && s.needs.energy > 0.4) { s.sleeping = false; note(s, "Frederik woke him up."); }
 }

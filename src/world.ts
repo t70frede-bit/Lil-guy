@@ -1,21 +1,83 @@
-// Lil guy's small world and the menu of moves he can pick from.
-// The AI can only choose from this menu; anything else is refused by code.
+// Lil guy's world: his house, the empty land outside, and whatever gets built there.
+// The map lives in world/world.json, shared with the web page. The AI can only choose
+// moves from MOVE_TYPES; anything else is refused by code.
 
+import WORLD from "../world/world.json" with { type: "json" };
 import { clamp, type Needs } from "./needs.js";
 
-export const PLACES = {
-  bed: "a sock folded into a bed",
-  window: "the windowsill, where light and birds happen",
-  rug: "the big soft rug in the middle of the room",
-  shelf: "a bookshelf full of things he does not understand yet",
-  doorstep: "the doorstep, where the outside begins",
-} as const;
-export type Place = keyof typeof PLACES;
-export const PLACE_NAMES = Object.keys(PLACES) as Place[];
+export interface Action { verb: string; from?: string; to?: string; effect?: Partial<Needs>; line: string }
+export interface WorldObject {
+  id: string; name: string; area: string; kind: string; state: string; desc: string; actions: Action[];
+  /** Set when the object belongs to something that was built after a wish. */
+  built?: string;
+}
+export interface Buildable {
+  id: string; name: string; keywords: string[]; meets: string; kind: string; desc: string;
+  objects: Omit<WorldObject, "area" | "kind" | "built">[];
+}
+/** Something Frederik approved, now standing on a plot outside. */
+export interface Built { id: string; name: string; kind: string; plot: number; at: string; buildable?: string }
+
+export const AREAS = WORLD.areas as { id: string; name: string; desc: string }[];
+const BASE = WORLD.objects as unknown as WorldObject[];
+export const BUILDABLES = WORLD.buildables as unknown as Buildable[];
+const CUSTOM = WORLD.custom as unknown as { kind: string; desc: string; actions: Action[] };
+export const PLOTS = WORLD.plots.length;
+
+/** Every place he can be next to: the house, outside, and everything built so far. */
+export function objectsOf(s: { built: Built[] }): WorldObject[] {
+  const out = [...BASE];
+  for (const b of s.built) {
+    const def = BUILDABLES.find(x => x.id === b.buildable);
+    if (def) for (const o of def.objects) out.push({ ...o, id: s.built.filter(x => x.buildable === def.id).indexOf(b) > 0 ? `${o.id}-${b.id}` : o.id, area: "outside", kind: def.kind, built: b.id });
+    else out.push({ id: b.id, name: b.name, area: "outside", kind: CUSTOM.kind, state: "new", desc: CUSTOM.desc, actions: CUSTOM.actions, built: b.id });
+  }
+  return out;
+}
+
+const words = (t: string) => t.toLowerCase().replace(/[^a-z0-9' -]/g, " ").trim();
+
+export function findObject(s: { built: Built[] }, text: string | undefined): WorldObject | undefined {
+  if (!text) return undefined;
+  const t = words(text);
+  const all = objectsOf(s);
+  return all.find(o => o.id === t || words(o.name) === t)
+    ?? all.find(o => t.includes(words(o.name)) || t.includes(o.id))
+    ?? all.find(o => words(o.name).includes(t))
+    ?? (/\b(outside|field|grass|garden|yard)\b/.test(t) ? all.find(o => o.id === "field")
+      : /\b(home|house|room|inside)\b/.test(t) ? all.find(o => o.id === "rug") : undefined);
+}
+
+export function stateOf(s: { objects: Record<string, string> }, o: WorldObject): string {
+  return s.objects[o.id] ?? o.state;
+}
+
+export function availableActions(s: { objects: Record<string, string> }, o: WorldObject): Action[] {
+  const st = stateOf(s, o);
+  return o.actions.filter(a => !a.from || a.from === st);
+}
+
+export function findAction(s: { objects: Record<string, string> }, o: WorldObject, text: string | undefined): Action | undefined {
+  const acts = availableActions(s, o);
+  if (!text) return acts.length === 1 ? acts[0] : undefined;
+  const t = words(text);
+  return acts.find(a => words(a.verb) === t) ?? acts.find(a => t.includes(words(a.verb)) || words(a.verb).includes(t));
+}
+
+export function findBuildable(item: string): Buildable | undefined {
+  const t = words(item);
+  return BUILDABLES.find(b => b.keywords.some(k => new RegExp(`\\b${k}`).test(t)));
+}
+
+/** Does this wish sound like a place or thing to build in his world? */
+export function isBuildWish(item: string): boolean {
+  return !!findBuildable(item) || /\b(place|corner|room|house|hut|shop|studio|park|arena|stage|library|cafe|kitchen|tower|castle|playground|museum|gallery|workshop|club|spot|tent|shed|slide|swing|bridge)\b/.test(words(item));
+}
 
 export const MOVE_TYPES = [
   "wait",          // stay put and watch
-  "go",            // go to a place (target = place)
+  "go",            // go next to something (target = thing or "outside" / "home")
+  "use",           // do something with a thing (target = thing, action = one of its actions)
   "look_closer",   // examine something where he is (target = thing)
   "try",           // try doing something new (target = short description)
   "rest",          // short rest
@@ -28,6 +90,7 @@ export type MoveType = (typeof MOVE_TYPES)[number];
 export interface Move {
   type: MoveType;
   target?: string;
+  action?: string;
   item?: string;
   need?: string;
   text?: string;
@@ -38,6 +101,7 @@ export function moveEffect(type: MoveType, n: Needs): Needs {
   const e = { ...n };
   switch (type) {
     case "go": e.energy -= 0.04; break;
+    case "use": e.energy -= 0.03; break;
     case "look_closer": e.energy -= 0.02; break;
     case "try": e.energy -= 0.05; e.fulfilled += 0.03; break;
     case "rest": e.energy += 0.06; e.curiosity += 0.02; break;
