@@ -124,7 +124,7 @@ footer { color: var(--muted); font-size: 12px; }
   let homeX = 0, targetX = 0, travelling = false, wanderTimer = 3;
 
   $('needs').innerHTML = NEEDS.map(([k, label]) =>
-    `<div class="need"><span>${label}</span><div class="bar"><b id="b-${k}"></b></div><output id="o-${k}"></output></div>`).join('');
+    '<div class="need"><span>' + label + '</span><div class="bar"><b id="b-' + k + '"></b></div><output id="o-' + k + '"></output></div>').join('');
 
   function timeAgo(ms) {
     const m = Math.round(ms / 60000);
