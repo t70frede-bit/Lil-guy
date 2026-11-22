@@ -16,7 +16,7 @@ export function drift(n: Needs): Needs {
   return {
     energy: clamp(n.energy - 0.005),
     curiosity: clamp(n.curiosity + 0.03),
-    company: clamp(n.company - 0.015),
+    company: clamp(n.company - 0.01),
     feisty: clamp(n.feisty - 0.03),
     fulfilled: clamp(n.fulfilled - 0.01),
   };
