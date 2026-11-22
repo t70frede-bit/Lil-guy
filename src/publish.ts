@@ -91,8 +91,13 @@ export async function publishAssets(url: string | undefined, token: string | und
   assetsNextTry = Date.now() + 3600_000; // on any failure, try again in an hour
   try {
     const dir = new URL("../../world/", import.meta.url);
-    const files: Record<string, string> = {};
+    const files: Record<string, unknown> = {};
     for (const name of ["index.html", "app.js", "world.json"]) files[name] = readFileSync(new URL(name, dir), "utf8");
+    const icons: Record<string, string> = {};
+    for (const name of ["apple-touch-icon.png", "icon-192.png", "icon-512.png"]) {
+      try { icons[name] = readFileSync(new URL(`icons/${name}`, dir)).toString("base64"); } catch { /* no icon, no problem */ }
+    }
+    files.icons = icons;
     const res = await fetch(`${url.replace(/\/$/, "")}/assets`, {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
@@ -101,6 +106,9 @@ export async function publishAssets(url: string | undefined, token: string | und
     });
     if (res.status === 404) { console.log("The world page does not take page files yet; will try again in an hour."); return; }
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    // An older page that does not keep icons yet: the page files are in, try again in an hour for the icons.
+    const kept = ((await res.json().catch(() => ({}))) as { files?: string[] }).files ?? [];
+    if (Object.keys(icons).length && !kept.includes("icons")) { console.log("World page files updated; it does not take icons yet, will try again in an hour."); return; }
     assetsSent = true;
     console.log("World page files updated.");
   } catch (e) {
