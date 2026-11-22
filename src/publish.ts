@@ -2,15 +2,16 @@
 // Only what the page needs: no chat with Frederik, no Telegram details.
 
 import { readFileSync } from "node:fs";
-import { mood, shape } from "./needs.js";
+import { shape } from "./needs.js";
 import { findObject } from "./world.js";
-import type { State } from "./state.js";
+import { publicSelf } from "./self.js";
+import { moodOf, type State } from "./state.js";
 
 const PRIVATE = /^(Frederik said|Said to Frederik)/i;
 const MIN_GAP_MS = 90_000; // keeps us well inside Cloudflare's free daily write limit
 
 export function snapshot(s: State, tickSeconds: number) {
-  const m = mood(s.needs, s.sleeping);
+  const m = moodOf(s);
   const thought = [...s.diary].reverse().find(d => d.text.startsWith("Thought: "));
   return {
     v: 1,
@@ -41,6 +42,7 @@ export function snapshot(s: State, tickSeconds: number) {
     })),
     secrets: s.secrets ?? {},
     wonder: s.wonder ? { day: s.wonder.day, text: s.wonder.text, answer: s.wonder.answer } : null,
+    self: publicSelf(s),
     ticks: s.ticks,
   };
 }

@@ -25,7 +25,7 @@ Character sheet: `src/character.ts`. Places and moves: `src/world.ts`.
 
 ## Telegram commands
 
-`/start` (first time only, makes you the owner), `/status`, `/diary`, `/projects`, `/pause`, `/resume`. Any other text is a message to lil guy, and he answers.
+`/start` (first time only, makes you the owner), `/status`, `/diary`, `/projects`, `/me` (who he is, his theories and his goal in life), `/pause`, `/resume`. Any other text is a message to lil guy, and he answers.
 
 ## Run it locally
 

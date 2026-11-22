@@ -3,13 +3,16 @@
 
 import { randomUUID } from "node:crypto";
 import type { Brain } from "./brain.js";
-import { clamp, drift, mood, shape, sleepTick, type NeedName, type Needs } from "./needs.js";
-import { highlight, note, type PendingWish, type State } from "./state.js";
+import { clamp, drift, shape, sleepTick, type NeedName, type Needs } from "./needs.js";
+import { feelProud, highlight, moodOf, note, type PendingWish, type State } from "./state.js";
 import { availableActions, findAction, findBuildable, findObject, hiddenSecret, isBuildWish, moveEffect, noveltyReward, PLOTS, repeatBoredom, SECRET_JOY, type Built, type Move } from "./world.js";
 import { answerWonder, needsWonder, setWonder } from "./wonder.js";
 import { applyEffect, judge } from "./wishmaster.js";
 import { activeProject, canAffordNextStep, kr, makeProject, recentlyToldNo, tokensToFinish, waitingProject, type Project } from "./workshop.js";
 import { urgent } from "./needs.js";
+import { addTheory, applyPick, applyReflection, nameOf, needsReflection, treasure } from "./self.js";
+import { objectsOf } from "./world.js";
+import { today } from "./wonder.js";
 
 export const MAX_MESSAGES_PER_DAY = 12;
 
@@ -33,8 +36,14 @@ function canMessage(s: State): boolean {
 }
 function countMessage(s: State) { s.sentToday.count++; }
 
-function reward(s: State, key: string) {
+function reward(s: State, key: string, care = false) {
   const times = s.tried[key] ?? 0;
+  if (care) {
+    // Looking after something never gets old: a small, steady good feeling, no restlessness.
+    s.tried[key] = times + 1;
+    s.needs = applyEffect(s.needs, times === 0 ? { fulfilled: noveltyReward(0), curiosity: -noveltyReward(0) } : { fulfilled: 0.04, company: 0.02 });
+    return times === 0;
+  }
   const r = noveltyReward(times);
   s.tried[key] = times + 1;
   // New things fill him up and satisfy curiosity; doing the same thing again makes him restless.
@@ -42,15 +51,27 @@ function reward(s: State, key: string) {
   return times === 0;
 }
 
+/** Some first tries go a bit wrong. Kept in an object so tests can switch it off. */
+export const luck = { mishapChance: 1 / 8, roll: () => Math.random() };
+
+const MISHAPS = [
+  "it did not work the first time", "he rolled right past it", "he got a bit tangled up",
+  "it was much trickier than it looked", "he tried it the wrong way round", "he bumped his nose",
+];
+
 export async function step(s: State, brain: Brain, out: Outbox): Promise<void> {
   if (s.paused) return;
   s.ticks++;
-  const before = mood(s.needs, s.sleeping);
 
+  // The very first time after this update: he decides some things about himself.
+  if (!s.self && !s.sleeping) await pickSelf(s, brain, out);
+
+  const before = moodOf(s);
   if (s.sleeping) {
+    if (needsReflection(s)) await reflect(s, brain, out);
     s.needs = sleepTick(s.needs);
     if (s.items.includes("a warm blanket")) s.needs = applyEffect(s.needs, { energy: 0.02 }); // sleeps better tucked in
-    if (s.needs.energy >= 0.95) { s.sleeping = false; note(s, "Woke up rested."); }
+    if (s.needs.energy >= 0.95) { s.sleeping = false; note(s, "Woke up rested."); morning(s); }
     return;
   }
   s.needs = drift(s.needs);
@@ -62,9 +83,15 @@ export async function step(s: State, brain: Brain, out: Outbox): Promise<void> {
   note(s, `Thought: ${decision.thought}`);
   if (decision.wonder && needsWonder(s)) setWonder(s, decision.wonder);
   for (const move of decision.moves.slice(0, 3)) await doMove(s, move as Move & { reason?: string }, out, brain);
-  if (decision.wonder_answer) answerWonder(s, decision.wonder_answer);
+  if (decision.wonder_answer) {
+    const open = s.wonder && !s.wonder.answer;
+    answerWonder(s, decision.wonder_answer);
+    if (open && s.wonder?.answer) feelProud(s);
+  }
+  if (decision.theory) addTheory(s, decision.theory.about, decision.theory.belief);
+  if (decision.name_it) nameThing(s, decision.name_it.thing, decision.name_it.name);
 
-  const after = mood(s.needs, s.sleeping);
+  const after = moodOf(s);
   if (after !== before) {
     note(s, `Mood changed from ${before} to ${after}; he is now a ${shape(after)}.`);
     const line = MOOD_LINES[after] ?? (before === "feisty" || before === "lonely" ? "Cheered up and became a round ball again." : undefined);
@@ -75,13 +102,73 @@ export async function step(s: State, brain: Brain, out: Outbox): Promise<void> {
 const MOOD_LINES: Record<string, string> = {
   feisty: "Got feisty and turned into a spiky ball.",
   lonely: "Felt lonely and turned into a cube.",
+  proud: "Felt very proud and did a happy wiggle.",
 };
+
+async function pickSelf(s: State, brain: Brain, out: Outbox) {
+  let pick;
+  try { pick = await brain.pickSelf(s); }
+  catch (e) { note(s, `Tried to decide some things about himself, but could not think clearly (${(e as Error).message}).`); return; }
+  applyPick(s, pick, objectsOf(s).map(o => ({ id: o.id, name: o.name })));
+  // Telling Frederik what he chose is showing him something, so it is allowed.
+  if (pick.announce && canMessage(s)) { countMessage(s); await out.say(pick.announce.slice(0, 600)); }
+}
+
+async function reflect(s: State, brain: Brain, out: Outbox) {
+  let r;
+  try { r = await brain.reflect(s); }
+  catch (e) {
+    note(s, `Dreamed, but could not remember what about (${(e as Error).message}).`);
+    if (s.self) s.self.reflectedDay = today(); // try again tomorrow night, not every tick
+    return;
+  }
+  const goal = applyReflection(s, r);
+  // A big decision is worth showing Frederik, and it is never a request to hang out.
+  if (goal && s.self) await out.say(`I thought about it for a lot of nights, and I decided my goal in life. ${goal}.${s.self.goalWhy ? ` ${s.self.goalWhy}` : ""}`.slice(0, 700));
+}
+
+/** His morning ritual, once a day when he wakes up. */
+export function morning(s: State) {
+  const day = today();
+  s.rituals ??= {};
+  if (s.rituals.morning === day) return;
+  s.rituals.morning = day;
+  s.objects.plant = "a bit thirsty"; // plants get thirsty overnight
+  const plant = nameOf(s, "plant", "the little plant");
+  s.needs = applyEffect(s.needs, { company: 0.05, fulfilled: 0.03 });
+  const line = `Morning: stretched as far as he could, peeked out of the window, and said good morning to ${plant}.`;
+  note(s, line);
+  highlight(s, "ritual", line);
+}
+
+/** His bedtime ritual, once a day when he goes to sleep. */
+export function bedtime(s: State) {
+  const day = today();
+  s.rituals ??= {};
+  if (s.rituals.bedtime === day) return;
+  s.rituals.bedtime = day;
+  const things = ["plant", "ball", "lamp"].map(id => nameOf(s, id, id === "plant" ? "the little plant" : id === "ball" ? "the toy ball" : "the lamp"));
+  s.needs = applyEffect(s.needs, { company: 0.04 });
+  const line = `Bedtime: said goodnight to ${things.slice(0, -1).join(", ")} and ${things[things.length - 1]}, then pulled the sock up to his chin.`;
+  note(s, line);
+  highlight(s, "ritual", line);
+}
+
+/** He gives one of his things his own name. */
+export function nameThing(s: State, thing: string, name: string) {
+  const o = findObject(s, thing);
+  const n = name.replace(/\s+/g, " ").trim().slice(0, 30);
+  if (!s.self || !o || !n || s.self.names[o.id] === n) return;
+  s.self.names[o.id] = n;
+  note(s, `Decided to call the ${o.name} "${n}".`);
+  highlight(s, "self", `Gave the ${o.name} a name: ${n}.`);
+}
 
 export async function doMove(s: State, move: Move & { reason?: string }, out: Outbox, brain?: Brain) {
   switch (move.type) {
     case "wait": note(s, "Waited and watched."); break;
     case "rest": s.needs = moveEffect("rest", s.needs); note(s, "Rested for a bit."); break;
-    case "sleep": s.sleeping = true; s.place = "bed"; note(s, "Crawled into the sock bed and fell asleep."); break;
+    case "sleep": s.sleeping = true; s.place = "bed"; bedtime(s); note(s, "Crawled into the sock bed and fell asleep."); break;
     case "go": {
       const obj = findObject(s, move.target);
       if (!obj) { note(s, `Tried to go to "${move.target}", which is not somewhere he knows.`); break; }
@@ -105,22 +192,36 @@ export async function doMove(s: State, move: Move & { reason?: string }, out: Ou
         break;
       }
       if (s.place !== obj.id) { s.place = obj.id; reward(s, `go:${obj.id}`); }
+      const key = `use:${obj.id}:${action.verb}`;
+      // Some first tries go a bit wrong. Nothing changes, and getting it right next time feels extra good.
+      if (!s.tried[key] && !action.secret && !action.care && s.oops !== key && luck.roll() < luck.mishapChance) {
+        s.oops = key;
+        s.needs = applyEffect(s.needs, { feisty: 0.05, energy: -0.02 });
+        const why = MISHAPS[Math.floor(luck.roll() * MISHAPS.length) % MISHAPS.length];
+        s.last = { object: obj.id, verb: "oops", line: `Tried to ${action.verb}, but ${why}.`, at: new Date().toISOString() };
+        note(s, `Tried to ${action.verb} (the ${obj.name}), but oops: ${why}. He will try again.`);
+        highlight(s, "oops", `Tried to ${action.verb}, but ${why}. Oops.`);
+        break;
+      }
+      const secondTry = s.oops === key;
+      if (secondTry) { s.oops = undefined; s.needs = applyEffect(s.needs, { fulfilled: 0.12, feisty: -0.1 }); feelProud(s); }
       if (action.to) s.objects[obj.id] = action.to;
       s.needs = moveEffect("use", s.needs);
       if (action.effect) s.needs = applyEffect(s.needs, action.effect);
       const firstWithIt = !Object.keys(s.tried).some(k => k.startsWith(`use:${obj.id}:`));
-      const first = reward(s, `use:${obj.id}:${action.verb}`);
+      const first = reward(s, key, action.care);
       // The first time is the main line; after that, things like clouds look different each time.
       const line = action.lines?.length && !first ? action.lines[Math.floor(Math.random() * action.lines.length)] : action.lines?.length ? action.lines[0] : action.line;
       s.last = { object: obj.id, verb: action.verb, line, at: new Date().toISOString() };
       if (action.secret && s.secrets[action.secret] !== "found") {
         s.secrets[action.secret] = "found";
         s.needs = applyEffect(s.needs, SECRET_JOY);
+        feelProud(s);
         note(s, `${line} He found a secret!`);
         highlight(s, "secret", `Found a secret: ${line}`);
         break;
       }
-      note(s, `${line}${first ? " (new!)" : ""}`);
+      note(s, `${line}${first ? " (new!)" : ""}${secondTry ? " Got it on the second try!" : ""}`);
       if (firstWithIt) highlight(s, "first", `First time: ${line}`);
       break;
     }
@@ -208,7 +309,7 @@ export function resolveWish(s: State, id: string, approved: boolean): PendingWis
     s.needs = applyEffect(s.needs, fix);
     s.needs = applyEffect(s.needs, { fulfilled: 0.15, company: 0.1 });
     const built = isBuildWish(p.item) ? build(s, p.item) : undefined;
-    if (built) { note(s, `Frederik said yes! A ${built.name} was built outside.`); highlight(s, "built", `Frederik said yes, and ${/^[aeiou]/i.test(built.name) ? "an" : "a"} ${built.name} was built outside!`); }
+    if (built) { treasure(s, `The day my ${built.name} was built.`); note(s, `Frederik said yes! A ${built.name} was built outside.`); highlight(s, "built", `Frederik said yes, and ${/^[aeiou]/i.test(built.name) ? "an" : "a"} ${built.name} was built outside!`); }
     else {
       if (!/frederik|say hi|visit|company/i.test(p.item) && !s.items.includes(p.item)) s.items.push(p.item);
       note(s, `Frederik said yes to ${p.item}!`);
@@ -308,6 +409,8 @@ async function work(s: State, brain: Brain | undefined, out: Outbox) {
     s.objects.planboard = "a finished project is pinned up";
     s.needs = applyEffect(s.needs, { fulfilled: 0.3 });
     note(s, `Finished his project "${p.title}"!`);
+    feelProud(s);
+    treasure(s, p.friend ? `The day I finished designing ${p.friend.name}.` : `The day I finished "${p.title}".`);
     highlight(s, "project", p.friend ? `Finished designing a new friend: ${p.friend.name}!` : `Finished his project "${p.title}"!`);
     await out.inform(finishedMessage(p, brain.model)); // always: a finished project is what Frederik paid for
   }

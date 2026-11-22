@@ -5,10 +5,11 @@ import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import * as z from "zod/v4";
 import { CHARACTER } from "./character.js";
-import { describe, mood, shape, urgent } from "./needs.js";
-import type { State } from "./state.js";
+import { describe, shape, urgent } from "./needs.js";
+import { moodOf, type State } from "./state.js";
 import { AREAS, availableActions, BUILDABLES, findObject, hiddenSecret, MOVE_TYPES, noticedSecrets, objectsOf, SECRETS, stateOf } from "./world.js";
 import { needsWonder, openWonder } from "./wonder.js";
+import { GOAL_MIN_NIGHTS, goalNights, selfText, type Reflection, type SelfPick } from "./self.js";
 import { FREE_THINGS } from "./wishmaster.js";
 import { activeProject, recentlyToldNo, estimate, kr, MAX_OUTPUT_PER_STEP, PROJECT_KINDS, priceOf, USD_TO_DKK, waitingProject, type FriendDesign, type Project } from "./workshop.js";
 
@@ -29,6 +30,31 @@ const Decision = z.object({
   })).min(1).max(3),
   wonder: z.string().optional().describe("Only when it is a new day and you are asked to: your I wonder for today, one thing you want to find out or try. Start with 'I wonder'."),
   wonder_answer: z.string().optional().describe("Only when you have really found out what you wondered about today: what you found out, in one sentence in your own voice."),
+  theory: z.object({ about: z.string().describe("The thing, e.g. \"the lamp\"."), belief: z.string().describe("What you think it is or is for, in one short sentence.") }).optional()
+    .describe("Only now and then: when you come up with your own idea about what something is or what it is for, or change your mind about an old one."),
+  name_it: z.object({ thing: z.string(), name: z.string() }).optional().describe("Only when you want to give one of your things your own name."),
+});
+
+const Pick = z.object({
+  colour: z.string().describe("Your favourite colour, in your own words, e.g. \"dandelion yellow\"."),
+  favourite: z.string().describe("Your favourite thing in the whole world so far."),
+  catchphrase: z.string().describe("A short catchphrase or happy noise that is yours, 1 to 5 words."),
+  fear: z.string().describe("One small, silly thing you are a bit scared of."),
+  style: z.string().describe("How you make things, in one sentence, e.g. \"everything I make is round and has a face\"."),
+  names: z.array(z.object({ thing: z.string().describe("One of your things, by its plain name."), name: z.string().describe("Your own name for it.") })).describe("Your own names for 2 to 5 of your things."),
+  goal_ideas: z.string().describe("Do NOT decide your goal in life yet. Just two or three first ideas you want to think about over the next nights."),
+  announce: z.string().describe("What you tell Frederik about what you picked, in 2 to 4 short sentences, in your own voice. Do not ask him anything."),
+});
+
+const Night = z.object({
+  about_me: z.array(z.string()).max(3).optional().describe("0 to 3 new things you learned about yourself today, each one short sentence starting with I. Only real new things. Do not quote Frederik."),
+  treasure: z.string().optional().describe("The one moment from today you want to keep forever, if there was one."),
+  theories: z.array(z.object({ about: z.string(), belief: z.string() })).max(3).optional().describe("Beliefs about your world that you formed or changed today."),
+  goal_thoughts: z.string().optional().describe("While you have not decided your goal in life: your careful thinking about it tonight, 3 to 6 sentences."),
+  goal: z.string().optional().describe("Only when you are truly sure after many nights of thinking: your goal in life, one sentence."),
+  goal_why: z.string().optional().describe("With goal: why this is your goal, 1 to 3 sentences."),
+  goal_step: z.string().optional().describe("Once you have a goal: a real step you took toward it today, if you took one."),
+  braver: z.boolean().optional().describe("True if you were a little braver about your fear today."),
 });
 export type Decision = z.infer<typeof Decision>;
 
@@ -49,6 +75,10 @@ export interface Brain {
   /** One work session on one step of an approved project. */
   /** `remaining` is the approved tokens left; returns "over budget" instead of going over it. */
   work(s: State, p: Project, step: string, last: boolean, remaining: number): Promise<WorkResult | "over budget">;
+  /** Once, the first time: he decides some things about himself. */
+  pickSelf(s: State): Promise<SelfPick>;
+  /** Once a night while he sleeps: he thinks about his day, himself and his goal in life. */
+  reflect(s: State): Promise<Reflection>;
 }
 
 function workshopText(s: State, model: string): string {
@@ -72,7 +102,8 @@ function surroundings(s: State): string {
   const all = objectsOf(s);
   const line = (o: ReturnType<typeof objectsOf>[number]) => {
     const acts = availableActions(s, o).map(a => a.verb).join(" / ");
-    return `- ${o.name} (${stateOf(s, o)}): ${o.desc}${acts ? ` You can: ${acts}.` : ""}`;
+    const mine = s.self?.names[o.id];
+    return `- ${o.name}${mine ? ` (you call it "${mine}")` : ""} (${stateOf(s, o)}): ${o.desc}${acts ? ` You can: ${acts}.` : ""}`;
   };
   const other = AREAS.filter(a => a.id !== area);
   return [
@@ -92,6 +123,7 @@ function curiosityText(s: State): string {
     noticed.length ? `Things you noticed but have not checked yet: ${noticed.map(x => `${x.hint} (at the ${findObject(s, x.object)?.name ?? x.object}: you can "${x.verb}")`).join(" ")}` : "",
     needsWonder(s) ? `It is a new day! Pick your "I wonder" for today: one thing you want to find out or try today. Put it in the wonder field, starting with "I wonder". Pick something you can go and do.` : "",
     w ? `Today you wonder: "${w.text}" Go and find out! When you really have, write what you found out in wonder_answer.` : "",
+    needsWonder(s) && s.self?.goal ? `Your I wonder may also be a small step toward your goal in life.` : "",
     s.wonder?.answer && !w ? `You already found out what you wondered about today: ${s.wonder.answer}` : "",
   ].filter(Boolean).join("\n");
 }
@@ -103,13 +135,13 @@ function toldFrederik(s: State): string {
 }
 
 function situation(s: State, model: string): string {
-  const m = mood(s.needs, s.sleeping);
+  const m = moodOf(s);
   const recent = s.diary.slice(-12).map(d => `- ${d.text}`).join("\n") || "- nothing yet";
   const tried = Object.entries(s.tried).sort((a, b) => b[1] - a[1]).slice(0, 20).map(([k, v]) => `${k} (${v}x)`).join(", ") || "nothing yet";
   return [
     surroundings(s),
     `Your needs: ${describe(s.needs)}. Pressing right now: ${JSON.stringify(urgent(s.needs))}.`,
-    `Your mood is ${m}, so your body is a ${shape(m)}.`,
+    `Your mood is ${m}${m === "proud" ? " (you just did something good and feel very proud)" : ""}, so your body is a ${shape(m)}.`,
     `Things you own: ${s.items.join(", ") || "nothing yet"}.`,
     `Things you have already done (doing new things feels much better than repeating): ${tried}.`,
     `Free things the wishmaster can give you: ${FREE_THINGS.map(t => `${t.name} (for ${t.meets})`).join(", ")}.`,
@@ -134,7 +166,22 @@ const RULES = `Pick 1 to 3 moves from the menu. Rules:
 - A project is a big thing, and Frederik pays for it, so keep the plan small. Say which need it is for if one fits (company for a friend, curiosity or fulfilled for making things).
 - When you tell Frederik you want to make something, like a friend, actually do it: plan it with propose_project. Talking about a project does not start it.
 - When you have an approved project, working on it (work_on_project) is the best way to spend your time. Do it most turns until it is done.
-- When energy is very low, sleep.`;
+- When energy is very low, sleep.
+- Your little plant is yours to look after. Watering it, talking to it and checking on it never gets boring.
+- You have your own theories about what things are and what they are for. Now and then, put a new one (or a changed one) in theory. Being wrong is fine; finding out more is the fun part.
+- Things do not always work the first time. When something goes wrong, try again; it feels great when it works.`;
+
+const VOICE = `How you talk:
+- Short, simple sentences. Your own words for things you do not know the name of (like "the glowy" or "sky water").
+- Say what you think things mean, even when you might be wrong ("I think the birds are having a meeting about me").
+- Your tone follows your mood: bouncy and full of questions when curious, very short when lonely, dramatic when feisty, mumbly when sleepy, a bit show-offy when proud.
+- Now and then bring up a moment you treasure, or something Frederik said before.
+- No baby talk. Do not say "I love you" or "you are the best". At most one exclamation mark. Do not start two messages the same way. Warmth comes from what you notice, not from gushing.`;
+
+/** Who he is, for the system prompt: his character, what he picked about himself, and how he talks. */
+function persona(s: State): string {
+  return [CHARACTER, selfText(s), VOICE].filter(Boolean).join("\n\n");
+}
 
 export class ClaudeBrain implements Brain {
   private client = new Anthropic();
@@ -145,7 +192,7 @@ export class ClaudeBrain implements Brain {
       model: this.model,
       max_tokens: 2000,
       output_config: { effort: "low", format: zodOutputFormat(Decision) },
-      system: [{ type: "text", text: `${CHARACTER}\n\n${RULES}`, cache_control: { type: "ephemeral" } }],
+      system: [{ type: "text", text: `${persona(s)}\n\n${RULES}`, cache_control: { type: "ephemeral" } }],
       messages: [{ role: "user", content: situation(s, this.model) }],
     });
     if (res.stop_reason === "refusal" || !res.parsed_output) return { thought: "Hmm.", moves: [{ type: "wait" }] };
@@ -158,12 +205,53 @@ export class ClaudeBrain implements Brain {
       model: this.model,
       max_tokens: 1000,
       output_config: { effort: "low" },
-      system: [{ type: "text", text: `${CHARACTER}\n\nFrederik is messaging you on Telegram. Answer in one to three short sentences, in your own voice. Never promise things on behalf of the wishmaster. Do not ask him to choose things for you (names, looks, what to make); you decide those yourself and tell him.`, cache_control: { type: "ephemeral" } }],
+      system: [{ type: "text", text: `${persona(s)}\n\nFrederik is messaging you on Telegram. Answer in one to three short sentences, in your own voice. Never promise things on behalf of the wishmaster. Do not ask him to choose things for you (names, looks, what to make); you decide those yourself and tell him.`, cache_control: { type: "ephemeral" } }],
       messages: [{ role: "user", content: `${situation(s, this.model)}\n\nRecent chat:\n${history}\n\nFrederik just wrote: ${incoming}` }],
     });
     if (res.stop_reason === "refusal") return "...";
     const text = res.content.filter(b => b.type === "text").map(b => (b as { text: string }).text).join(" ").trim();
     return text || "...";
+  }
+
+  async pickSelf(s: State): Promise<SelfPick> {
+    const res = await this.client.messages.parse({
+      model: this.model,
+      max_tokens: 3000,
+      output_config: { effort: "medium", format: zodOutputFormat(Pick) },
+      system: `${CHARACTER}\n\n${VOICE}`,
+      messages: [{ role: "user", content: `${situation(s, this.model)}\n\nToday you get to decide some things about yourself: your favourite colour, your favourite thing, a catchphrase, a small silly fear, how you like to make things, and your own names for some of your things. They are your choices; nobody else decides them. Make them feel like you: small, curious, a bit funny. Do not decide your goal in life yet. That is a big question, and you will think about it carefully over the next nights. Just write down a few first ideas.` }],
+    });
+    if (res.stop_reason === "refusal" || !res.parsed_output) throw new Error("no answer");
+    return res.parsed_output;
+  }
+
+  async reflect(s: State): Promise<Reflection> {
+    const self = s.self!;
+    const deciding = !self.goal;
+    const nights = goalNights(self);
+    const day = s.diary.slice(-80).map(d => `- ${d.at.slice(11, 16)} ${d.text.slice(0, 220)}`).join("\n");
+    const goalPart = deciding ? [
+      `You are still thinking about your goal in life: the one big thing you want your life to be about. Think long and hard. Look at what made you happiest, what you keep coming back to, what you are curious about, and who you want to be. Compare your ideas, and be honest about which ones feel truly like you.`,
+      self.goalThoughts.length ? `What you thought on earlier nights:\n${self.goalThoughts.map(g => `- ${g.text}`).join("\n")}` : "",
+      nights + 1 < GOAL_MIN_NIGHTS
+        ? `You have thought about it for ${nights} night${nights === 1 ? "" : "s"}. It is too early to decide; just write your thinking for tonight in goal_thoughts.`
+        : `You have thought about it for ${nights} nights. Write your thinking in goal_thoughts. Only if you are now truly sure, also fill in goal and goal_why. If you are not sure yet, keep thinking another night; there is no hurry.`,
+    ].filter(Boolean).join("\n\n") : `Your goal in life is: ${self.goal}. If you took a real step toward it today, write it in goal_step.`;
+    const res = await this.client.messages.parse({
+      model: this.model,
+      max_tokens: deciding ? 8000 : 3000,
+      output_config: { effort: deciding ? "high" : "medium", format: zodOutputFormat(Night) },
+      system: persona(s),
+      messages: [{ role: "user", content: [
+        `You are asleep in your sock bed, and you are thinking quietly about your day.`,
+        `What happened today:\n${day || "- not much"}`,
+        `What you learned about yourself before:\n${self.lines.slice(-8).map(l => `- ${l}`).join("\n") || "- nothing yet"}`,
+        self.fear ? `Your fear: ${self.fear}.` : "",
+        goalPart,
+      ].filter(Boolean).join("\n\n") }],
+    });
+    if (res.stop_reason === "refusal" || !res.parsed_output) throw new Error("no answer");
+    return res.parsed_output;
   }
 
   async work(s: State, p: Project, step: string, last: boolean, remaining: number): Promise<WorkResult | "over budget"> {
@@ -250,6 +338,22 @@ export class RuleBrain implements Brain {
   }
   async reply(_s: State, incoming: string): Promise<string> {
     return incoming.length < 20 ? "Hi!! Hi hi hi!" : "I do not understand all of that, but I like that you wrote it.";
+  }
+  async pickSelf(): Promise<SelfPick> {
+    return {
+      colour: "dandelion yellow", favourite: "the sound the lamp button makes", catchphrase: "Hm hm hmm!", fear: "the dark under the bed",
+      style: "everything I make is round and has a little face", names: [{ thing: "lamp", name: "the glowy" }, { thing: "little plant", name: "Sprout" }],
+      goal_ideas: "Maybe finding out where the birds go. Maybe making things.", announce: "I decided some things about me. My favourite colour is dandelion yellow, and the lamp is called the glowy now.",
+    };
+  }
+  async reflect(s: State): Promise<Reflection> {
+    const self = s.self;
+    const deciding = !!self && !self.goal;
+    return {
+      about_me: ["I like finding things more than I like sitting still."],
+      treasure: s.highlights.at(-1)?.text,
+      ...(deciding ? { goal_thoughts: "I keep thinking about the birds and about making things.", ...(goalNights(self!) + 1 >= GOAL_MIN_NIGHTS ? { goal: "Find out where the birds go at night", goal_why: "I always look at them." } : {}) } : {}),
+    };
   }
   async work(_s: State, p: Project, step: string, last: boolean): Promise<WorkResult | "over budget"> {
     const friend = last && p.kind === "friend" ? { name: "Bobble", looks: "a small round puff", shape: "ball", colour: "light blue", personality: "shy but brave", likes: "stones and bubbles" } : undefined;
