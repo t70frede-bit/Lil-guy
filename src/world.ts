@@ -108,6 +108,8 @@ export interface Move {
   target?: string;
   action?: string;
   item?: string;
+  title?: string;
+  idea?: string;
   need?: string;
   text?: string;
   kind?: string;

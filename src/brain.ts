@@ -18,9 +18,11 @@ const Decision = z.object({
     target: z.string().optional().describe("For go and use: the name of a thing. For look_closer or try: what."),
     action: z.string().optional().describe("For use: one of the things you can do with it, exactly as listed."),
     item: z.string().optional().describe("For wish: the thing he wants."),
-    need: z.string().optional().describe("For wish: which need it is for (energy, curiosity, company, feisty, fulfilled)."),
+    title: z.string().optional().describe("For propose_project: the project's name, e.g. \"Design my friend Pip\"."),
+    idea: z.string().optional().describe("For propose_project: the idea in two or three sentences."),
+    need: z.string().optional().describe("For wish and propose_project: which need it is for (energy, curiosity, company, feisty, fulfilled)."),
     reason: z.string().optional().describe("For wish: why you need it, in your own words."),
-    text: z.string().optional().describe("For message: what he says to Frederik. For propose_project: the idea in two or three sentences."),
+    text: z.string().optional().describe("For message: what he says to Frederik."),
     kind: z.enum(PROJECT_KINDS).optional().describe("For propose_project: what sort of project."),
     steps: z.array(z.string()).optional().describe("For propose_project: the plan, 2 to 8 short steps. Each step is one work session."),
   })).min(1).max(3),
@@ -53,7 +55,7 @@ function workshopText(s: State, model: string): string {
   const ex = estimate(4, model);
   return [
     `You have a workshop outside. There you can plan your own projects: designing a new friend, making up a game, writing a story, inventing a thing, a drawing, or something else.`,
-    `To start one, use propose_project with a name (item), a kind, the idea (text), a plan of 2 to 8 steps, and the need it is for. The wishmaster works out how many tokens it will take (thinking costs tokens, and tokens cost Frederik money; 4 steps is about ${ex.tokens} tokens, ${kr(ex.dkk)}) and asks Frederik. Nothing happens until he says yes. Fewer steps cost less. You come up with the idea, the kind, the name and the plan yourself; Frederik only says yes or no to the cost.`,
+    `To start one, use propose_project and fill in title (its name), idea, kind, steps (2 to 8) and need. All five are needed. The wishmaster works out how many tokens it will take (thinking costs tokens, and tokens cost Frederik money; 4 steps is about ${ex.tokens} tokens, ${kr(ex.dkk)}) and asks Frederik. Nothing happens until he says yes. Fewer steps cost less. You come up with the idea, the kind, the name and the plan yourself; Frederik only says yes or no to the cost.`,
     active ? `Your project right now: "${active.title}" (${active.kind}). Done ${active.pieces.length} of ${active.steps.length} steps. Next step: ${active.steps[active.pieces.length]}. Use work_on_project to work on it.` : "You have no project going right now.",
     waiting ? `Waiting for Frederik: "${waiting.title}" (${waiting.status}). You cannot start another project until he answers.` : "",
     recentlyToldNo(s.projects) ? "Frederik said not now to your last project idea a little while ago. Give it some hours before you ask for a new one." : "",
@@ -100,10 +102,12 @@ const RULES = `Pick 1 to 3 moves from the menu. Rules:
 - Only wish for something when one of your pressing needs explains it, and say which need. Wishes without a need get declined.
 - Prefer using things in ways you have not tried before, or going somewhere new. To use a thing, pick "use" with its name as target and one of its listed actions.
 - Wishing for a place to be built is a big wish. Only do it when a need keeps coming back and nothing you have fixes it, and say which need.
-- Only send Frederik a message when you have something real to say or ask. Keep it to one or two short sentences.
+- Only send Frederik a message to show him something you made or found, or to ask a real question about the world. Keep it to one or two short sentences. Do not message him just to say hi, to ask him to hang out or play, or because you feel lonely.
+- Frederik is not someone to wish for. Never wish for Frederik to visit, say hi, hang out or keep you company.
+- When you feel lonely, look after yourself in your world: hug the toy ball, talk to the stone, watch the birds, or (if you have a workshop) design a friend there.
 - Never ask Frederik to decide things for you, like what to make, what a friend should be or what its name should be. Decide yourself, put it in your project, and tell him what you picked. The only thing Frederik decides is yes or no on the cost, through the wishmaster.
 - A project is a big thing. Only propose one when a need explains it (often fulfilled or curiosity, or company for a friend), and say which need. Keep the plan small.
-- When you have an approved project, working on it in the workshop is a great way to spend your time.
+- When you have an approved project, working on it (work_on_project) is the best way to spend your time. Do it most turns until it is done.
 - When energy is very low, sleep.`;
 
 export class ClaudeBrain implements Brain {
@@ -168,10 +172,10 @@ export class ClaudeBrain implements Brain {
 /** A brain with no AI, for testing and for running without an API key. */
 export class RuleBrain implements Brain {
   model = process.env.LILGUY_MODEL ?? "claude-haiku-5-5";
-  static plan(need: "fulfilled" | "curiosity"): Decision["moves"][number] {
-    return need === "curiosity"
-      ? { type: "propose_project", kind: "friend", need, item: "Design a new friend", text: "Someone small to explore with.", steps: ["What they look like", "What they like", "Their name"] }
-      : { type: "propose_project", kind: "invention", need, item: "A machine that makes bubbles", text: "A machine that blows bubbles when you press a button.", steps: ["Draw the machine", "Work out the button"] };
+  static plan(need: "fulfilled" | "curiosity" | "company"): Decision["moves"][number] {
+    return need !== "fulfilled"
+      ? { type: "propose_project", kind: "friend", need, title: "Design a new friend", idea: "Someone small to explore with.", steps: ["What they look like", "What they like", "Their name"] }
+      : { type: "propose_project", kind: "invention", need, title: "A machine that makes bubbles", idea: "A machine that blows bubbles when you press a button.", steps: ["Draw the machine", "Work out the button"] };
   }
   async decide(s: State): Promise<Decision> {
     const n = s.needs, u = urgent(n);
@@ -179,10 +183,9 @@ export class RuleBrain implements Brain {
     if (activeProject(s.projects)) return { thought: "Back to my project!", moves: [{ type: "work_on_project" }] };
     const canPlan = s.built.some(b => b.buildable === "workshop") && !waitingProject(s.projects);
     if (canPlan && !recentlyToldNo(s.projects) && u.fulfilled) return { thought: "I want to make something.", moves: [RuleBrain.plan("fulfilled")] };
-    if (u.company && !s.pending.length) {
-      return { thought: "It is very quiet.", moves: [
-        { type: "wish", item: "Frederik to say hi", need: "company", reason: "I have been alone for a long time." },
-      ] };
+    if (u.company) {
+      if (canPlan && !recentlyToldNo(s.projects)) return { thought: "It is quiet. I could make a friend!", moves: [RuleBrain.plan("company")] };
+      return { thought: "It is very quiet.", moves: [{ type: "use", target: "ball", action: "hug" }] };
     }
     if (u.feisty) return { thought: "Hmph.", moves: [{ type: "wish", item: "a cushion to punch", need: "feisty", reason: "I am pointy and cross." }] };
     if (u.curiosity) {

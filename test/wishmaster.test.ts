@@ -26,8 +26,17 @@ test("a free thing he already has does not help curiosity", () => {
 });
 
 test("a needed thing that is not free goes to Frederik", () => {
+  const needs = { ...freshNeeds(), fulfilled: 0.1 };
+  assert.equal(judge({ item: "a real paint set", need: "fulfilled", reason: "" }, needs, []).kind, "ask_frederik");
+});
+
+test("Frederik himself is not something to wish for, but a hangout hut is", () => {
   const needs = { ...freshNeeds(), company: 0.1 };
-  assert.equal(judge({ item: "Frederik to say hi", need: "company", reason: "" }, needs, []).kind, "ask_frederik");
+  for (const item of ["Frederik to say hi", "Frederik to hang out with me", "you to visit", "someone to play with me"]) {
+    const v = judge({ item, need: "company", reason: "" }, needs, []);
+    assert.equal(v.kind, "declined", item);
+  }
+  assert.equal(judge({ item: "a hangout hut", need: "company", reason: "" }, needs, []).kind, "ask_frederik");
 });
 
 test("mood decides the shape", () => {
@@ -37,17 +46,20 @@ test("mood decides the shape", () => {
   assert.equal(shape(mood({ ...freshNeeds(), curiosity: 0.95 })), "ball");
 });
 
-test("lonely lil guy asks Frederik, and approval cheers him up", async () => {
+test("lonely lil guy copes on his own instead of asking Frederik to hang out", async () => {
   const s = freshState();
   s.needs.company = 0.1;
-  const asked: string[] = [];
-  const out: Outbox = { say: async () => {}, inform: async () => {}, propose: async () => {}, askMore: async () => {}, ask: async w => { asked.push(w.item); } };
+  const asked: string[] = [], said: string[] = [];
+  const out: Outbox = { say: async t => { said.push(t); }, inform: async () => {}, propose: async () => {}, askMore: async () => {}, ask: async w => { asked.push(w.item); } };
   await step(s, new RuleBrain(), out);
-  assert.deepEqual(asked, ["Frederik to say hi"]);
-  const before = s.needs.company;
-  resolveWish(s, s.pending[0].id, true);
-  assert.ok(s.needs.company > before + 0.4);
-  assert.equal(s.pending.length, 0);
+  assert.deepEqual(asked, []);
+  assert.equal(s.place, "ball");
+  await doMove(s, { type: "message", text: "Can we hang out? I miss you." }, out);
+  await doMove(s, { type: "wish", item: "Frederik to say hi", need: "company" }, out);
+  assert.deepEqual(said, []);
+  assert.deepEqual(asked, []);
+  await doMove(s, { type: "message", text: "Look, I made the bed all by myself!" }, out);
+  assert.deepEqual(said, ["Look, I made the bed all by myself!"]);
 });
 
 test("a day of rule-based life runs without errors and explores", async () => {

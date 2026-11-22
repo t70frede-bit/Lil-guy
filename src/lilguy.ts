@@ -124,6 +124,7 @@ export async function doMove(s: State, move: Move & { reason?: string }, out: Ou
       const text = (move.text ?? "").trim().slice(0, 500);
       if (!text) break;
       if (asksFrederikToChoose(text)) { note(s, "Almost asked Frederik to choose for him, then decided to pick himself."); break; }
+      if (asksForCompany(text)) { note(s, "Almost asked Frederik to hang out, then remembered to only write when he has something to show or ask."); break; }
       if (!canMessage(s)) { note(s, "Wanted to message Frederik but has said enough today."); break; }
       countMessage(s);
       s.needs = moveEffect("message", s.needs);
@@ -146,7 +147,7 @@ async function wish(s: State, move: Move & { reason?: string }, out: Outbox) {
   const verdict = judge(w, s.needs, s.items);
 
   if (verdict.kind === "declined") {
-    s.needs = applyEffect(s.needs, { feisty: 0.1 });
+    if (!verdict.gentle) s.needs = applyEffect(s.needs, { feisty: 0.1 });
     note(s, `Wished for ${item}. The wishmaster said no: ${verdict.why}`);
     return;
   }
@@ -233,8 +234,9 @@ async function propose(s: State, move: Move & { reason?: string }, brain: Brain 
   if (activeProject(s.projects)) { note(s, "Thought of a new project, but wants to finish the one he is working on first."); return; }
   if (waitingProject(s.projects)) { note(s, "Thought of a new project, but is still waiting to hear about the last one."); return; }
   if (recentlyToldNo(s.projects)) { note(s, "Thought of a new project, but Frederik said not now a little while ago. He will wait a bit."); return; }
-  const p = makeProject({ title: move.item, kind: move.kind, idea: move.text, need: move.need, steps: move.steps }, brain?.model ?? "");
-  if (typeof p === "string") { note(s, `Tried to plan a project, but the wishmaster sent it back: ${p}`); return; }
+  // Accept the fields wherever he put them, so a good idea is not lost over a form.
+  const p = makeProject({ title: move.title ?? move.item ?? move.target, kind: move.kind, idea: move.idea ?? move.text ?? move.reason, need: move.need, steps: move.steps }, brain?.model ?? "");
+  if (typeof p === "string") { note(s, `Tried to plan a project, but the wishmaster sent it back: ${p} (A plan needs a title, an idea, 2 to 8 steps and a need.)`); return; }
   goToWorkbench(s);
   const pressing = urgent(s.needs);
   if (!p.need || !pressing[p.need as keyof typeof pressing]) {
@@ -269,7 +271,7 @@ async function work(s: State, brain: Brain | undefined, out: Outbox) {
   p.pieces.push({ at: new Date().toISOString(), step, text: res.text.slice(0, 2000), tokens: res.tokens });
   if (res.friend) p.friend = res.friend;
   s.needs = moveEffect("work_on_project", s.needs);
-  s.needs = applyEffect(s.needs, { fulfilled: 0.12, curiosity: -0.08 });
+  s.needs = applyEffect(s.needs, { fulfilled: 0.12, curiosity: -0.08, ...(p.kind === "friend" ? { company: 0.08 } : {}) });
   s.objects.workbench = "messy";
   s.last = { object: "workbench", verb: "work on a project", line: `Worked on "${p.title}": ${step}`, at: new Date().toISOString() };
   note(s, `Worked on "${p.title}": ${step} (${p.pieces.length} of ${p.steps.length} done, ${p.used} of ${p.budget} tokens used).`);
@@ -364,4 +366,12 @@ export function asksFrederikToChoose(text: string): boolean {
     || /\b(you (pick|choose|decide)|help me (choose|pick|decide))\b/.test(t)
     || /\bwhat do you want (it|my friend|the friend) to\b/.test(t)
     || /\bwhich (name|one|colou?r|kind)\b.*\b(you|best|better)\b/.test(t);
+}
+
+/** Messages that only ask Frederik for company. He should write to show something or ask a real question. */
+export function asksForCompany(text: string): boolean {
+  const t = text.toLowerCase();
+  return /\b(hang ?out|play) with me\b/.test(t) || /\bcan we (hang ?out|play|talk)\b/.test(t)
+    || /\b(i miss you|keep me company|come (over|by|visit)|visit me|spend time with me|are you there|i('| a)m (so |very )?lonely|i feel (so |very )?lonely)\b/.test(t)
+    || /\bwant(s)? to hang ?out\b/.test(t);
 }

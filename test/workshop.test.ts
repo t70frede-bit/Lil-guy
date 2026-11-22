@@ -135,3 +135,13 @@ test("he does not hand creative choices to Frederik", async () => {
   await doMove(s, { type: "message", text: "I named my friend Pip!" }, { ...outbox(), async say(t: string) { said.push(t); } });
   assert.deepEqual(said, ["I named my friend Pip!"]);
 });
+
+test("a project is understood even when he puts the name and idea in other fields", async () => {
+  const s = freshState(); ensureWorkshop(s); s.needs.company = 0.1;
+  const log: string[] = [];
+  await doMove(s, { type: "propose_project", target: "Design my friend Pip", kind: "friend", text: "A small round friend.", need: "company", steps: ["Looks", "Name"] }, outbox(log), new RuleBrain());
+  assert.equal(s.projects[0]?.title, "Design my friend Pip");
+  const s2 = freshState(); ensureWorkshop(s2); s2.needs.company = 0.1;
+  await doMove(s2, { type: "propose_project", title: "Pip", idea: "A friend.", kind: "friend", need: "company", steps: ["Looks", "Name"] }, outbox(), new RuleBrain());
+  assert.equal(s2.projects[0]?.title, "Pip");
+});
