@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="38%" r="75%">
+      <stop offset="0" stop-color="#fbeedd"/><stop offset="1" stop-color="#ead7c3"/>
+    </radialGradient>
+    <radialGradient id="body" cx="38%" cy="30%" r="75%">
+      <stop offset="0" stop-color="#8cc4fa"/><stop offset=".55" stop-color="#5fa8f5"/><stop offset="1" stop-color="#3f86d6"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <!-- soft shadow on the ground -->
+  <ellipse cx="256" cy="418" rx="132" ry="20" fill="#2a2433" opacity=".12"/>
+  <!-- tiny feet -->
+  <ellipse cx="206" cy="404" rx="30" ry="17" fill="#3f86d6"/>
+  <ellipse cx="306" cy="404" rx="30" ry="17" fill="#3f86d6"/>
+  <!-- round body, a little bottom-heavy -->
+  <path d="M256 104 C352 104 406 178 406 266 C406 350 344 408 256 408 C168 408 106 350 106 266 C106 178 160 104 256 104 Z" fill="url(#body)"/>
+  <!-- a little curl on top -->
+  <path d="M256 108 C252 84 264 70 282 74" stroke="#3f86d6" stroke-width="10" fill="none" stroke-linecap="round"/>
+  <!-- shine -->
+  <ellipse cx="190" cy="168" rx="34" ry="20" transform="rotate(-28 190 168)" fill="#fff" opacity=".35"/>
+  <!-- big low eyes -->
+  <g fill="#2a2433">
+    <ellipse cx="204" cy="276" rx="27" ry="37"/>
+    <ellipse cx="308" cy="276" rx="27" ry="37"/>
+  </g>
+  <g fill="#fff">
+    <circle cx="214" cy="262" r="10"/><circle cx="196" cy="290" r="4.5"/>
+    <circle cx="318" cy="262" r="10"/><circle cx="300" cy="290" r="4.5"/>
+  </g>
+  <!-- cheeks -->
+  <g fill="#ff7f8e" opacity=".62">
+    <ellipse cx="164" cy="326" rx="25" ry="14"/>
+    <ellipse cx="348" cy="326" rx="25" ry="14"/>
+  </g>
+  <!-- small open smile -->
+  <path d="M232 334 Q256 356 280 334 Q256 366 232 334 Z" fill="#2a2433" stroke="#2a2433" stroke-width="9" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

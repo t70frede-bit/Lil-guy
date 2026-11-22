@@ -9,6 +9,9 @@ the page (`index.html`, a three.js room) and keeps his latest state in one KV na
 - When the server starts, it POSTs `index.html`, `app.js` and `world.json` from its copy of the repo to `/assets`
   (same token). The Worker serves those instead of its bundled copies, so a normal server update also updates
   the page. Only the Worker itself (`worker.js`) still needs a deploy when it changes.
+- The home screen app: `/manifest.webmanifest` (in `worker.js`) plus his face icons in `icons/`. The server sends
+  the PNGs with the page files (as base64). To change the icon, edit `icons/icon.svg` and render it to
+  `apple-touch-icon.png` (180), `icon-192.png` and `icon-512.png`. Keep him inside the middle 80% (maskable safe zone).
 - The first token ever used to POST is remembered (as a hash). The installer makes that token
   (`WORLD_TOKEN` in `/opt/lil-guy/.env`). To start over with a new token, delete the `owner` key in the KV namespace.
 

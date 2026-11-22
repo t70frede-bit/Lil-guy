@@ -91,8 +91,13 @@ export async function publishAssets(url: string | undefined, token: string | und
   assetsNextTry = Date.now() + 3600_000; // on any failure, try again in an hour
   try {
     const dir = new URL("../../world/", import.meta.url);
-    const files: Record<string, string> = {};
+    const files: Record<string, unknown> = {};
     for (const name of ["index.html", "app.js", "world.json"]) files[name] = readFileSync(new URL(name, dir), "utf8");
+    const icons: Record<string, string> = {};
+    for (const name of ["apple-touch-icon.png", "icon-192.png", "icon-512.png"]) {
+      try { icons[name] = readFileSync(new URL(`icons/${name}`, dir)).toString("base64"); } catch { /* no icon, no problem */ }
+    }
+    files.icons = icons;
     const res = await fetch(`${url.replace(/\/$/, "")}/assets`, {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
