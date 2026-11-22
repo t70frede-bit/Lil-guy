@@ -19,7 +19,7 @@ const Decision = z.object({
     target: z.string().optional().describe("For go and use: the name of a thing. For look_closer or try: what."),
     action: z.string().optional().describe("For use: one of the things you can do with it, exactly as listed."),
     item: z.string().optional().describe("For wish: the thing he wants."),
-    need: z.string().optional().describe("For wish: which need it is for (energy, curiosity, company, feisty, fulfilled)."),
+    need: z.string().optional().describe("For wish: which need it is for, if one fits (energy, curiosity, company, feisty, fulfilled)."),
     reason: z.string().optional().describe("For wish: why you need it, in your own words."),
     text: z.string().optional().describe("For message: what he says to Frederik. For propose_project: the idea in two or three sentences."),
     kind: z.enum(PROJECT_KINDS).optional().describe("For propose_project: what sort of project."),
@@ -104,8 +104,8 @@ function situation(s: State, model: string): string {
     `Your mood is ${m}, so your body is a ${shape(m)}.`,
     `Things you own: ${s.items.join(", ") || "nothing yet"}.`,
     `Things you have already done (doing new things feels much better than repeating): ${tried}.`,
-    `Free things the wishmaster can give if you really need them: ${FREE_THINGS.map(t => `${t.name} (for ${t.meets})`).join(", ")}.`,
-    `Outside is empty land. If a need keeps coming back, you can wish for a place or thing to be built out there, and the wishmaster asks Frederik. Ideas other little creatures have had: ${BUILDABLES.filter(b => !s.built.some(x => x.buildable === b.id)).map(b => `${b.name} (for ${b.meets})`).join(", ")}. You can also dream up your own.`,
+    `Free things the wishmaster can give you: ${FREE_THINGS.map(t => `${t.name} (for ${t.meets})`).join(", ")}.`,
+    `Outside is empty land. You can wish for a place or thing to be built out there, and the wishmaster asks Frederik. Ideas other little creatures have had: ${BUILDABLES.filter(b => !s.built.some(x => x.buildable === b.id)).map(b => `${b.name} (for ${b.meets})`).join(", ")}. You can also dream up your own.`,
     curiosityText(s),
     workshopText(s, model),
     `Wishes still waiting for Frederik: ${s.pending.map(p => p.item).join(", ") || "none"}.`,
@@ -114,10 +114,10 @@ function situation(s: State, model: string): string {
 }
 
 const RULES = `Pick 1 to 3 moves from the menu. Rules:
-- Only wish for something when one of your pressing needs explains it, and say which need. Wishes without a need get declined.
+- You may wish for anything you really want. Say which need it is for if one fits, and why you want it.
 - Doing something for the very first time feels wonderful. Doing the same thing again feels like almost nothing and makes you restless. So always look for something new: a place you have not been, an action you have not tried, a thing you have not looked closely at. To use a thing, pick "use" with its name as target and one of its listed actions.
 - Look closer at things. Many of them hide secrets, and finding one is the best feeling there is.
-- Wishing for a place to be built is a big wish. Only do it when a need keeps coming back and nothing you have fixes it, and say which need.
+- Wishing for a place to be built is a big wish. Say why you want it.
 - Only send Frederik a message when you have something real to say or ask. Keep it to one or two short sentences.
 - Never ask Frederik to decide things for you, like what to make, what a friend should be or what its name should be. Decide yourself, put it in your project, and tell him what you picked. The only thing Frederik decides is yes or no on the cost, through the wishmaster.
 - A project is a big thing. Only propose one when a need explains it (often fulfilled or curiosity, or company for a friend), and say which need. Keep the plan small.

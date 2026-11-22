@@ -1,7 +1,7 @@
 // The wishmaster sits between lil guy and Frederik.
-// Rule 1: a wish must come from a real need, or it is declined.
-// Rule 2: free, easy things that meet the need are granted on the spot.
-// Rule 3: anything that needs Frederik (company, money, real objects, decisions) is sent to him.
+// He may wish for anything he wants.
+// Rule 1: free, easy things that meet the need are granted on the spot.
+// Rule 2: anything that needs Frederik (company, money, real objects, decisions) is sent to him.
 
 import { clamp, urgent, type NeedName, type Needs } from "./needs.js";
 
@@ -35,21 +35,20 @@ const NEED_NAMES: NeedName[] = ["energy", "curiosity", "company", "feisty", "ful
 function normalise(s: string) { return s.toLowerCase().replace(/^(a|an|some|the)\s+/, "").trim(); }
 
 export function judge(wish: Wish, needs: Needs, owned: string[]): Verdict {
+  // He may wish for anything; the need is only used to explain the wish and pick a free thing.
   const need = NEED_NAMES.find(n => wish.need.toLowerCase().includes(n));
   const inNeed = urgent(needs);
-  if (!need) return { kind: "declined", why: `"${wish.need}" is not one of his needs.` };
-  if (!inNeed[need]) {
-    return { kind: "declined", why: `He says it is for ${need}, but ${need} is fine right now (${Math.round(needs[need] * 100)}%). Wishes have to come from a need.` };
-  }
   const wanted = normalise(wish.item);
-  const free = FREE_THINGS.find(t => t.meets === need && (normalise(t.name) === wanted || wanted.includes(normalise(t.name))));
+  const matches = FREE_THINGS.filter(t => normalise(t.name) === wanted || wanted.includes(normalise(t.name)));
+  const free = matches.find(t => t.meets === need) ?? matches[0];
   if (free) {
     if (owned.includes(free.name) && free.meets === "curiosity") {
       return { kind: "declined", why: `He already has ${free.name}. Something he has already seen will not help his curiosity.` };
     }
-    return { kind: "granted", thing: free, why: `${need} is ${inNeed[need]}, and ${free.name} is free.` };
+    return { kind: "granted", thing: free, why: `${free.name} is free${need && inNeed[need] ? `, and his ${need} is ${inNeed[need]}` : ""}.` };
   }
-  return { kind: "ask_frederik", why: `${need} is ${inNeed[need]} (${Math.round(needs[need] * 100)}%), and this needs you.` };
+  const feeling = need ? ` He says it is for ${need} (${Math.round(needs[need] * 100)}%${inNeed[need] ? `, ${inNeed[need]}` : ""}).` : "";
+  return { kind: "ask_frederik", why: `This needs you.${feeling}` };
 }
 
 export function applyEffect(needs: Needs, effect: Partial<Needs>): Needs {

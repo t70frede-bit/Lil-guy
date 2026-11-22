@@ -11,8 +11,8 @@ A very small creature who lives on a server, gets bored, lonely and feisty on hi
 - **Secrets**: his world hides little secrets (world/world.json, `secrets`). Looking closer at a thing makes him notice one; finding it is the best feeling there is. Some lead to others, like a treasure map.
 - **I wonder**: each morning (Danish time) he picks one thing to find out or try that day. It only counts as found out once he has actually done something new.
 - **Wishmaster** (`src/wishmaster.ts`):
-  - a wish with no real need behind it is declined,
-  - a free thing that meets a real need is granted on the spot,
+  - he may wish for anything he wants,
+  - a free thing is granted on the spot,
   - anything that needs Frederik (company, real objects, money) is sent to Telegram with **Approve** and **Not now** buttons.
 - **Workshop** (`src/workshop.ts`): a building outside where he works on his own projects, like designing a new friend, making up a game or writing a story.
   - He proposes a project with a small plan (2 to 8 steps). Code, not AI, works out the token estimate (with a 20% margin) and the price in DKK.

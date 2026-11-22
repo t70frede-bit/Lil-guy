@@ -9,9 +9,13 @@ import { heardFromFrederik } from "../src/lilguy.js";
 import { snapshot } from "../src/publish.js";
 import { judge } from "../src/wishmaster.js";
 
-test("a wish without a need is declined", () => {
-  const v = judge({ item: "a rocket", need: "curiosity", reason: "" }, freshNeeds(), []);
-  assert.equal(v.kind, "declined");
+test("he may wish for anything, even when his stats are fine; Frederik decides", () => {
+  assert.equal(judge({ item: "a rocket", need: "curiosity", reason: "" }, freshNeeds(), []).kind, "ask_frederik");
+  assert.equal(judge({ item: "a rocket", need: "", reason: "" }, freshNeeds(), []).kind, "ask_frederik");
+});
+
+test("a free thing is granted even when the need is fine", () => {
+  assert.equal(judge({ item: "a leaf", need: "", reason: "" }, freshNeeds(), []).kind, "granted");
 });
 
 test("a needed free thing is granted", () => {
