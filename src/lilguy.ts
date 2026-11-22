@@ -35,10 +35,15 @@ function countMessage(s: State) { s.sentToday.count++; }
 
 function reward(s: State, key: string) {
   const times = s.tried[key] ?? 0;
-  const r = noveltyReward(times);
+  s.lastTried ??= {};
+  const last = s.lastTried[key];
+  // Things he did before this was tracked count as done long ago.
+  const hours = last ? (Date.now() - Date.parse(last)) / 3600_000 : 1e6;
+  const r = noveltyReward(times, hours);
   s.tried[key] = times + 1;
-  // New things fill him up and satisfy curiosity; doing the same thing again makes him restless.
-  s.needs = applyEffect(s.needs, { fulfilled: r, curiosity: -r + repeatBoredom(times), feisty: times === 0 ? -0.05 : 0 });
+  s.lastTried[key] = new Date().toISOString();
+  // New things fill him up and satisfy curiosity; doing the same thing again soon makes him restless.
+  s.needs = applyEffect(s.needs, { fulfilled: r, curiosity: -r + repeatBoredom(times, hours), feisty: times === 0 ? -0.05 : 0 });
   return times === 0;
 }
 

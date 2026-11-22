@@ -169,14 +169,24 @@ export function moveEffect(type: MoveType, n: Needs): Needs {
 }
 
 /**
- * Novelty reward: the first time he does something, it feels wonderful.
- * Repeats wear off fast (0.45, then 0.09, 0.03, 0.01...), so exploring and trying beats repeating.
+ * Novelty reward: the first time he does something, it feels wonderful (0.45).
+ * A repeat is worth less the more often he has done it (0.10, 0.05, 0.03...),
+ * but it recovers over a day away from it, to a small level that also shrinks with
+ * how often he has done it, never below 0.04 so nothing is completely phased out.
+ * Even fully recovered, a repeat is worth at most 0.18, far below a first.
  */
-export function noveltyReward(timesDone: number): number {
-  return timesDone <= 0 ? 0.45 : 0.09 / (timesDone * timesDone);
+export const FIRST_REWARD = 0.45;
+export const RECOVERY_HOURS = 24;
+export function noveltyReward(timesDone: number, hoursSinceLast = 0): number {
+  if (timesDone <= 0) return FIRST_REWARD;
+  const worn = 0.1 / timesDone;
+  const rested = Math.max(0.04, 0.18 / Math.sqrt(timesDone));
+  const back = Math.min(1, Math.max(0, hoursSinceLast) / RECOVERY_HOURS);
+  return worn + (Math.max(rested, worn) - worn) * back;
 }
 
-/** Doing the same thing again and again makes him restless: extra curiosity for each repeat. */
-export function repeatBoredom(timesDone: number): number {
-  return timesDone <= 0 ? 0 : Math.min(0.1, 0.03 * timesDone);
+/** Doing the same thing again soon makes him restless: extra curiosity, fading as time passes. */
+export function repeatBoredom(timesDone: number, hoursSinceLast = 0): number {
+  if (timesDone <= 0) return 0;
+  return Math.min(0.1, 0.03 * timesDone) * (1 - Math.min(1, Math.max(0, hoursSinceLast) / RECOVERY_HOURS));
 }
