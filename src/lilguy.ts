@@ -296,7 +296,8 @@ async function wish(s: State, move: Move & { reason?: string }, out: Outbox) {
   }
   if (!canMessage(s)) { note(s, `Wanted to ask for ${item}, but the wishmaster is saving it for tomorrow.`); return; }
   countMessage(s);
-  const pending: PendingWish = { id: randomUUID().slice(0, 8), item, need: w.need, reason: w.reason, at: new Date().toISOString() };
+  const looks = (move.looks ?? "").replace(/\s+/g, " ").trim().slice(0, 240);
+  const pending: PendingWish = { id: randomUUID().slice(0, 8), item, need: w.need, reason: w.reason, at: new Date().toISOString(), ...(looks ? { looks } : {}) };
   s.pending.push(pending);
   note(s, `Wished for ${item}. The wishmaster asked Frederik.`);
   highlight(s, "wish", w.reason ? `Wished for ${item}: "${w.reason.slice(0, 140)}"` : `Wished for ${item}.`);
@@ -313,7 +314,7 @@ export function resolveWish(s: State, id: string, approved: boolean): PendingWis
     const fix: Partial<Needs> = need === "feisty" ? { feisty: -0.4 } : need === "energy" ? { energy: 0.4 } : need === "curiosity" ? { curiosity: -0.4 } : need ? { [need]: 0.5 } : {};
     s.needs = applyEffect(s.needs, fix);
     s.needs = applyEffect(s.needs, { fulfilled: 0.15, company: 0.1 });
-    const built = isBuildWish(p.item) ? build(s, p.item) : undefined;
+    const built = isBuildWish(p.item) ? build(s, p.item, p.looks) : undefined;
     if (built) { treasure(s, `The day my ${built.name} was built.`); note(s, `Frederik said yes! A ${built.name} was built outside.`); highlight(s, "built", `Frederik said yes, and ${/^[aeiou]/i.test(built.name) ? "an" : "a"} ${built.name} was built outside!`); }
     else {
       if (!/frederik|say hi|visit|company/i.test(p.item) && !s.items.includes(p.item)) s.items.push(p.item);
@@ -329,12 +330,13 @@ export function resolveWish(s: State, id: string, approved: boolean): PendingWis
 }
 
 /** Put an approved place on the next free plot outside. */
-export function build(s: State, item: string): Built | undefined {
+export function build(s: State, item: string, looks?: string): Built | undefined {
   const def = findBuildable(item);
   if (def && s.built.some(b => b.buildable === def.id)) return undefined; // already has one
   const name = (def?.name ?? item.replace(/^(a|an|some|the|my|his)\s+/i, "")).slice(0, 60);
   const id = def?.id ?? `custom-${randomUUID().slice(0, 6)}`;
-  const b: Built = { id, name, kind: def?.kind ?? "custom", plot: s.built.length % Math.max(PLOTS, 1), at: new Date().toISOString(), ...(def ? { buildable: def.id } : {}) };
+  const b: Built = { id, name, kind: def?.kind ?? "custom", plot: s.built.length % Math.max(PLOTS, 1), at: new Date().toISOString(), ...(def ? { buildable: def.id } : {}),
+    ...(looks ? { looks } : {}), ...(s.self?.colour ? { colour: s.self.colour } : {}) };
   s.built.push(b);
   return b;
 }

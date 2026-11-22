@@ -13,7 +13,7 @@ export interface DiaryEntry { at: string; text: string }
 /** A moment worth remembering, for the Highlights on his page. */
 export type HighlightKind = "first" | "wish" | "yes" | "no" | "built" | "mood" | "chat" | "gift" | "project" | "secret" | "wonder" | "theory" | "self" | "goal" | "ritual" | "oops";
 export interface Highlight { at: string; kind: HighlightKind; text: string }
-export interface PendingWish { id: string; item: string; need: string; reason: string; at: string; messageId?: number }
+export interface PendingWish { id: string; item: string; need: string; reason: string; at: string; messageId?: number; looks?: string }
 
 /** His "I wonder" for the day: something he picked to find out or try. */
 export interface Wonder {

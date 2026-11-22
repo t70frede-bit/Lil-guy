@@ -9,7 +9,7 @@ import { describe, shape, urgent } from "./needs.js";
 import { moodOf, type State } from "./state.js";
 import { AREAS, availableActions, BUILDABLES, findObject, hiddenSecret, MOVE_TYPES, noticedSecrets, objectsOf, SECRETS, stateOf } from "./world.js";
 import { needsWonder, openWonder } from "./wonder.js";
-import { GOAL_MIN_NIGHTS, goalNights, selfText, type Reflection, type SelfPick } from "./self.js";
+import { GOAL_MIN_NIGHTS, goalNights, personalityBrief, selfText, type Reflection, type SelfPick } from "./self.js";
 import { FREE_THINGS } from "./wishmaster.js";
 import { activeProject, recentlyToldNo, estimate, kr, MAX_OUTPUT_PER_STEP, PROJECT_KINDS, priceOf, USD_TO_DKK, waitingProject, type FriendDesign, type Project } from "./workshop.js";
 
@@ -24,6 +24,7 @@ const Decision = z.object({
     idea: z.string().optional().describe("For propose_project: the idea in two or three sentences."),
     need: z.string().optional().describe("For wish (if one fits) and propose_project: which need it is for (energy, curiosity, company, feisty, fulfilled)."),
     reason: z.string().optional().describe("For wish: why you need it, in your own words."),
+    looks: z.string().optional().describe("For a wish for a place to be built: how you picture it, in one sentence (its colour, its shape, one funny detail)."),
     text: z.string().optional().describe("For message: what he says to Frederik."),
     kind: z.enum(PROJECT_KINDS).optional().describe("For propose_project: what sort of project."),
     steps: z.array(z.string()).optional().describe("For propose_project: the plan, 2 to 8 short steps. Each step is one work session."),
@@ -81,6 +82,15 @@ export interface Brain {
   reflect(s: State): Promise<Reflection>;
 }
 
+/** So what he makes feels like his, not like anyone's. */
+const MAKE_IT_YOURS = `Make it yours:
+- Use your maker's style and your favourite colour where it fits.
+- Use your own words, including your names for things.
+- Put in at least one real thing from your own life: a secret you found, your plant, one of your theories, your goal, a moment you treasure.
+- Your naive ideas are welcome. Things do not have to be correct; they have to be yours.
+- A friend you design must fit in your world next to you: simple shapes, a face, tiny limbs, and something about it that comes from what you love or what you miss.
+- On the last step, sign the finished piece at the end with your mark: a tiny drawing made of letters, and your catchphrase.`;
+
 function workshopText(s: State, model: string): string {
   if (!s.built.some(b => b.buildable === "workshop")) return "";
   const active = activeProject(s.projects), waiting = waitingProject(s.projects);
@@ -88,6 +98,7 @@ function workshopText(s: State, model: string): string {
   const ex = estimate(4, model);
   return [
     `You have a workshop outside. There you can plan your own projects: designing a new friend, making up a game, writing a story, inventing a thing, a drawing, or something else.`,
+    `Your project ideas come from your own life: your goal in life, the secrets you found, your theories, what you love and what you miss. Not from a list.`,
     `To start one, use propose_project and fill in title (its name), idea, kind, steps (2 to 8) and need. All five are needed. The wishmaster works out how many tokens it will take (thinking costs tokens, and tokens cost Frederik money; 4 steps is about ${ex.tokens} tokens, ${kr(ex.dkk)}) and asks Frederik. Nothing happens until he says yes. Fewer steps cost less. You come up with the idea, the kind, the name and the plan yourself; Frederik only says yes or no to the cost.`,
     active ? `Your project right now: "${active.title}" (${active.kind}). Done ${active.pieces.length} of ${active.steps.length} steps. Next step: ${active.steps[active.pieces.length]}. Use work_on_project to work on it.` : "You have no project going right now.",
     waiting ? `Waiting for Frederik: "${waiting.title}" (${waiting.status}). You cannot start another project until he answers.` : "",
@@ -158,7 +169,7 @@ const RULES = `Pick 1 to 3 moves from the menu. Rules:
 - You may wish for anything you really want. Say which need it is for if one fits, and why you want it.
 - Doing something for the very first time feels wonderful. Doing the same thing again feels like almost nothing and makes you restless. So always look for something new: a place you have not been, an action you have not tried, a thing you have not looked closely at. To use a thing, pick "use" with its name as target and one of its listed actions.
 - Look closer at things. Many of them hide secrets, and finding one is the best feeling there is.
-- Wishing for a place to be built is a big wish. Say why you want it.
+- Wishing for a place to be built is a big wish. Say why you want it, and in looks say how you picture it (colour, shape, one funny detail). It will be built to look like you imagined.
 - You write to Frederik on your little computer, on the desk in your house. The message move walks you there, switches it on and sends it. Only send Frederik a message to show him something you made or found, or to ask a real question about the world. Keep it to one or two short sentences. Do not message him just to say hi, to ask him to hang out or play, or because you feel lonely.
 - Frederik is not someone to wish for. Never wish for Frederik to visit, say hi, hang out or keep you company.
 - When you feel lonely, look after yourself in your world: hug the toy ball, talk to the stone, watch the birds, or (if you have a workshop) design a friend there.
@@ -259,7 +270,7 @@ export class ClaudeBrain implements Brain {
     const request = {
       model: this.model,
       output_config: { effort: "low" as const, format: zodOutputFormat(Piece) },
-      system: [{ type: "text" as const, text: `${CHARACTER}\n\nYou are in your workshop, working on one of your own projects that Frederik said yes to. Do one step at a time and write down what you made. Stay small and in your own voice. You cannot run code or reach the internet; you make ideas, plans, designs, rules and stories. Make every choice yourself (names, looks, colours, rules); never leave a question for Frederik to answer.`, cache_control: { type: "ephemeral" as const } }],
+      system: [{ type: "text" as const, text: `${CHARACTER}\n\n${personalityBrief(s, moodOf(s))}\n\nYou are in your workshop, working on one of your own projects that Frederik said yes to. Do one step at a time and write down what you made. Stay small and in your own voice. You cannot run code or reach the internet; you make ideas, plans, designs, rules and stories. Make every choice yourself (names, looks, colours, rules); never leave a question for Frederik to answer.\n\n${MAKE_IT_YOURS}`, cache_control: { type: "ephemeral" as const } }],
       messages: [{ role: "user" as const, content: [
         `Project: "${p.title}" (${p.kind}). Idea: ${p.idea}`,
         `Plan: ${p.steps.map((x, i) => `${i + 1}. ${x}`).join(" ")}`,

@@ -141,3 +141,26 @@ test("his page shows who he is, but nothing private", async () => {
   assert.equal(snap.self?.colour, "dandelion yellow");
   assert.ok(!JSON.stringify(snap.self).includes("Frederik said something nice"));
 });
+
+test("his personality brief carries his style and his life into what he makes", async () => {
+  const { personalityBrief } = await import("../src/self.js");
+  const s = await withSelf();
+  addTheory(s, "the lamp", "A tiny sun.");
+  s.items.push("a bottle cap");
+  const brief = personalityBrief(s, "proud");
+  assert.match(brief, /round and has a little face/);
+  assert.match(brief, /the lamp: A tiny sun/);
+  assert.match(brief, /bottle cap/);
+  assert.match(brief, /proud/);
+  assert.equal(personalityBrief(freshState()), "", "no brief before he knows who he is");
+});
+
+test("a place he wished for is built the way he pictured it, in his colour", async () => {
+  const { resolveWish } = await import("../src/lilguy.js");
+  const s = await withSelf();
+  s.pending.push({ id: "w1", item: "a bubble hut", need: "curiosity", reason: "", at: "", looks: "A round mint green hut with a bubble on top" });
+  resolveWish(s, "w1", true);
+  const b = s.built.at(-1)!;
+  assert.equal(b.looks, "A round mint green hut with a bubble on top");
+  assert.equal(b.colour, "dandelion yellow");
+});

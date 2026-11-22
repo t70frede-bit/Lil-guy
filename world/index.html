@@ -105,6 +105,7 @@ details.all summary { cursor: pointer; font: 600 13px var(--display); color: var
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 .hint { position: fixed; right: var(--right); top: var(--top); font-size: 11px; color: var(--muted); padding: 4px 10px; border-radius: 999px; }
 .sound { position: fixed; right: var(--right); top: calc(var(--top) + 34px); width: 40px; height: 40px; border-radius: 999px; display: grid; place-items: center; color: var(--ink); cursor: pointer; padding: 0; }
+.sound[hidden] { display: none; }
 .sound svg { width: 20px; height: 20px; }
 .sound[aria-pressed="false"] .on, .sound[aria-pressed="true"] .off { display: none; }
 
@@ -161,6 +162,16 @@ details.all summary { cursor: pointer; font: 600 13px var(--display); color: var
       <dt>Thoughts</dt><dd id="fTicks">0</dd>
       <dt>Last heard</dt><dd id="fHeard">Not yet</dd>
     </dl>
+    <div id="who" hidden>
+      <h3>Who he is</h3>
+      <dl class="facts">
+        <dt>Favourite colour</dt><dd id="wColour"></dd>
+        <dt>Catchphrase</dt><dd id="wCatch"></dd>
+        <dt>Goal in life</dt><dd id="wGoal"></dd>
+        <dt>How he makes things</dt><dd id="wStyle"></dd>
+      </dl>
+      <h3>His theories</h3><ul class="list" id="wTheories"></ul>
+    </div>
   </div>
 </section>
 

@@ -35,7 +35,13 @@ export interface Buildable {
   objects: Omit<WorldObject, "area" | "kind" | "built">[];
 }
 /** Something Frederik approved, now standing on a plot outside. */
-export interface Built { id: string; name: string; kind: string; plot: number; at: string; buildable?: string }
+export interface Built {
+  id: string; name: string; kind: string; plot: number; at: string; buildable?: string;
+  /** How he pictured it when he wished for it (colour, shape, a funny detail). The page uses its colour. */
+  looks?: string;
+  /** His favourite colour when it was built, so it looks like his. */
+  colour?: string;
+}
 
 export const AREAS = WORLD.areas as { id: string; name: string; desc: string }[];
 const BASE = WORLD.objects as unknown as WorldObject[];
@@ -151,6 +157,7 @@ export interface Move {
   text?: string;
   kind?: string;
   steps?: string[];
+  looks?: string;
 }
 
 /** How a move changes his needs before novelty rewards. */
