@@ -5,7 +5,8 @@ import { randomUUID } from "node:crypto";
 import type { Brain } from "./brain.js";
 import { clamp, drift, mood, shape, sleepTick, type NeedName, type Needs } from "./needs.js";
 import { highlight, note, type PendingWish, type State } from "./state.js";
-import { availableActions, findAction, findBuildable, findObject, isBuildWish, moveEffect, noveltyReward, PLOTS, type Built, type Move } from "./world.js";
+import { availableActions, findAction, findBuildable, findObject, hiddenSecret, isBuildWish, moveEffect, noveltyReward, PLOTS, repeatBoredom, SECRET_JOY, type Built, type Move } from "./world.js";
+import { answerWonder, needsWonder, setWonder } from "./wonder.js";
 import { applyEffect, judge } from "./wishmaster.js";
 import { activeProject, canAffordNextStep, kr, makeProject, recentlyToldNo, tokensToFinish, waitingProject, type Project } from "./workshop.js";
 import { urgent } from "./needs.js";
@@ -36,8 +37,8 @@ function reward(s: State, key: string) {
   const times = s.tried[key] ?? 0;
   const r = noveltyReward(times);
   s.tried[key] = times + 1;
-  // New things satisfy curiosity; doing the same thing again and again makes him bored.
-  s.needs = applyEffect(s.needs, { fulfilled: r, curiosity: -r * 1.2 + (times >= 2 ? 0.04 : 0) });
+  // New things fill him up and satisfy curiosity; doing the same thing again makes him restless.
+  s.needs = applyEffect(s.needs, { fulfilled: r, curiosity: -r + repeatBoredom(times), feisty: times === 0 ? -0.05 : 0 });
   return times === 0;
 }
 
@@ -59,7 +60,9 @@ export async function step(s: State, brain: Brain, out: Outbox): Promise<void> {
   catch (e) { note(s, `Could not think clearly (${(e as Error).message}). Carried on.`); return; }
 
   note(s, `Thought: ${decision.thought}`);
+  if (decision.wonder && needsWonder(s)) setWonder(s, decision.wonder);
   for (const move of decision.moves.slice(0, 3)) await doMove(s, move as Move & { reason?: string }, out, brain);
+  if (decision.wonder_answer) answerWonder(s, decision.wonder_answer);
 
   const after = mood(s.needs, s.sleeping);
   if (after !== before) {
@@ -107,12 +110,37 @@ export async function doMove(s: State, move: Move & { reason?: string }, out: Ou
       if (action.effect) s.needs = applyEffect(s.needs, action.effect);
       const firstWithIt = !Object.keys(s.tried).some(k => k.startsWith(`use:${obj.id}:`));
       const first = reward(s, `use:${obj.id}:${action.verb}`);
-      s.last = { object: obj.id, verb: action.verb, line: action.line, at: new Date().toISOString() };
-      note(s, `${action.line}${first ? " (new!)" : ""}`);
-      if (firstWithIt) highlight(s, "first", `First time: ${action.line}`);
+      // The first time is the main line; after that, things like clouds look different each time.
+      const line = action.lines?.length && !first ? action.lines[Math.floor(Math.random() * action.lines.length)] : action.lines?.length ? action.lines[0] : action.line;
+      s.last = { object: obj.id, verb: action.verb, line, at: new Date().toISOString() };
+      if (action.secret && s.secrets[action.secret] !== "found") {
+        s.secrets[action.secret] = "found";
+        s.needs = applyEffect(s.needs, SECRET_JOY);
+        note(s, `${line} He found a secret!`);
+        highlight(s, "secret", `Found a secret: ${line}`);
+        break;
+      }
+      note(s, `${line}${first ? " (new!)" : ""}`);
+      if (firstWithIt) highlight(s, "first", `First time: ${line}`);
       break;
     }
-    case "look_closer":
+    case "look_closer": {
+      // Looking closely at a real thing is how he notices its secrets.
+      const obj = findObject(s, move.target);
+      const here = findObject(s, s.place);
+      if (obj && (obj.id === s.place || obj.area === here?.area)) {
+        const secret = hiddenSecret(s, obj.id);
+        if (secret) {
+          s.place = obj.id;
+          s.needs = moveEffect("look_closer", s.needs);
+          s.secrets[secret.id] = "noticed";
+          reward(s, `look_closer:${obj.id}:${secret.id}`);
+          note(s, `Looked closely at the ${obj.name} and noticed something: ${secret.hint}`);
+          break;
+        }
+      }
+    }
+    // falls through
     case "try": {
       const what = (move.target ?? "something").slice(0, 80);
       s.needs = moveEffect(move.type, s.needs);

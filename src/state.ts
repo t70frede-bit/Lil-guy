@@ -3,14 +3,27 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { freshNeeds, type Needs } from "./needs.js";
-import type { Built } from "./world.js";
+import type { Built, SecretState } from "./world.js";
 import type { Project } from "./workshop.js";
 
 export interface DiaryEntry { at: string; text: string }
 /** A moment worth remembering, for the Highlights on his page. */
-export type HighlightKind = "first" | "wish" | "yes" | "no" | "built" | "mood" | "chat" | "gift" | "project";
+export type HighlightKind = "first" | "wish" | "yes" | "no" | "built" | "mood" | "chat" | "gift" | "project" | "secret" | "wonder";
 export interface Highlight { at: string; kind: HighlightKind; text: string }
 export interface PendingWish { id: string; item: string; need: string; reason: string; at: string; messageId?: number }
+
+/** His "I wonder" for the day: something he picked to find out or try. */
+export interface Wonder {
+  /** The day in Denmark it is for, YYYY-MM-DD. */
+  day: string;
+  text: string;
+  at: string;
+  /** How many different things he had done when he picked it; answering needs something new. */
+  triedAtStart: number;
+  /** What he found out, once he did. */
+  answer?: string;
+  answeredAt?: string;
+}
 
 export interface State {
   needs: Needs;
@@ -31,6 +44,10 @@ export interface State {
   /** The moments worth remembering, newest last. */
   highlights: Highlight[];
   pending: PendingWish[];
+  /** Secrets in his world he has noticed or found, by id. */
+  secrets: Record<string, SecretState>;
+  /** Today's "I wonder" goal. */
+  wonder?: Wonder;
   /** His own projects from the workshop, each with a token budget Frederik approved. */
   projects: Project[];
   ownerChatId?: number;
@@ -44,7 +61,7 @@ export interface State {
 
 export function freshState(): State {
   return {
-    needs: freshNeeds(), place: "bed", objects: {}, built: [], sleeping: false, paused: false, items: [], tried: {},
+    needs: freshNeeds(), place: "bed", objects: {}, built: [], sleeping: false, paused: false, items: [], tried: {}, secrets: {},
     diary: [], highlights: [], pending: [], projects: [], telegramOffset: 0, sentToday: { day: "", count: 0 }, chat: [], ticks: 0,
   };
 }

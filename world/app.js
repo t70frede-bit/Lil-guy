@@ -116,7 +116,7 @@
   let world = null;       // world.json
   const S = {             // latest state from his server
     needs: { energy: 0.8, curiosity: 0.55, company: 0.7, feisty: 0.1, fulfilled: 0.5 },
-    sleeping: false, place: 'rug', mood: 'content', objects: {}, built: [], uses: {}, items: [], wishes: [], projects: []
+    sleeping: false, place: 'rug', mood: 'content', objects: {}, built: [], uses: {}, items: [], wishes: [], projects: [], secrets: {}, wonder: null
   };
 
   const builders = {
@@ -363,6 +363,38 @@
     return things[def.id];
   }
 
+  // ---------- Secrets ----------
+  // A glint floats over a secret he has noticed; what he found stays in the world afterwards.
+  const SECRET_LOOK = {
+    floorboard: [1.15, 0.06, 0.6, g => { const p = mesh(box(0.75, 0.04, 0.24), toon(0x8a5a3c), 0, 0, 0, g); p.rotation.z = 0.25; p.rotation.y = 0.4; }],
+    marble: [1.45, 0.09, 0.85, g => { mesh(sph(0.09), toon(0x3b7dd8), 0, 0, 0, g); }],
+    map: [0.55, 0.06, 0.75, g => { mesh(box(0.42, 0.01, 0.3), basic(0xf3e2b8), 0, 0, 0, g); [0.6, -0.6].forEach(r => { const x = mesh(box(0.12, 0.012, 0.025), basic(0xc2473d), 0.08, 0.002, 0.04, g); x.rotation.y = r; }); }],
+    tinbox: [0.95, 0.06, 0.45, g => { const h = mesh(new THREE.CircleGeometry(0.22, 16), basic(0x5b4636), 0, -0.05, 0.1, g); h.rotation.x = -Math.PI / 2; const b = mesh(box(0.24, 0.12, 0.17), toon(0xb0b4b8), 0, 0, 0, g); b.rotation.y = 0.5; }],
+    keyhole: [0.45, 2.69, 0.1, g => { mesh(box(0.22, 0.12, 0.16), toon(0xe0a548), 0, 0, 0, g); const lid = mesh(box(0.22, 0.02, 0.16), toon(0xe0a548), 0, 0.1, -0.09, g); lid.rotation.x = -1.1; }],
+    underbed: [0.65, 0.06, 0.75, g => { mesh(cyl(0.07, 0.07, 0.02, 14), toon(0xd86ca8), 0, 0, 0, g); }],
+    doormat: [-0.45, 0.05, 0.3, g => { const n = mesh(box(0.24, 0.01, 0.17), basic(0xffffff), 0, 0, 0, g); n.rotation.y = 0.3; }],
+    clover: [0.4, 0.06, 0.9, g => { [[0.05, 0], [-0.05, 0], [0, 0.05], [0, -0.05]].forEach(([x, z]) => { const l = mesh(new THREE.CircleGeometry(0.055, 10), basic(0x2f8f5b), x, 0, z, g); l.rotation.x = -Math.PI / 2; }); }],
+    beetles: [-0.85, 0.05, 0.35, g => { [[0, 0], [0.12, 0.08], [0.05, -0.1]].forEach(([x, z]) => mesh(sph(0.045, 8, 6), toon(0x2a2433), x, 0, z, g)); }],
+  };
+  const secretBits = {}; // id -> { glint, found }
+  const glintGeo = new THREE.OctahedronGeometry(0.1, 0), glintMat = new THREE.MeshBasicMaterial({ color: 0xffe27a });
+  function syncSecrets() {
+    (world.secrets || []).forEach(x => {
+      const th = things[x.object]; if (!th) return;
+      const st = S.secrets[x.id];
+      let bits = secretBits[x.id];
+      if (!bits) {
+        const look = SECRET_LOOK[x.id] || [0, 0, 0.6, null];
+        const glint = mesh(glintGeo, glintMat, look[0], Math.max(0.6, look[1] + 0.5), look[2], th.group);
+        let found = null;
+        if (look[3]) { found = new THREE.Group(); found.position.set(look[0], look[1], look[2]); th.group.add(found); look[3](found); }
+        bits = secretBits[x.id] = { glint, found, base: glint.position.y };
+      }
+      bits.glint.visible = st === 'noticed';
+      if (bits.found) bits.found.visible = st === 'found';
+    });
+  }
+
   // Where he stands to use each thing.
   const SPOT = { bed: [-2.0, -0.6], shelf: [-1.0, -1.3], rug: [0, 0.4], window: [1.6, -1.4], lamp: [2.4, -1.3], ball: [-0.8, 1.6], doorstep: [3.7, 0.6], field: [9, 0.6], stone: [6.5, 2.4] };
   const PLACE = { home: 'In his house', outside: 'Outside' };
@@ -560,7 +592,8 @@
     if (!d || !d.needs) return;
     S.needs = d.needs; S.sleeping = !!d.sleeping; S.mood = d.mood || 'content';
     S.objects = d.objects || {}; S.built = d.built || []; S.uses = d.uses || {}; S.items = d.items || []; S.wishes = d.wishes || []; S.projects = d.projects || [];
-    if (world) { syncBuilt(); syncGifts(); }
+    S.secrets = d.secrets || {}; S.wonder = d.wonder || null;
+    if (world) { syncBuilt(); syncGifts(); syncSecrets(); }
     Object.values(things).forEach(t => t.update(S.objects[t.def.id] || t.def.state));
 
     const place = S.sleeping ? 'bed' : d.place;
@@ -583,6 +616,10 @@
     $('placeChip').textContent = where; $('moodChip').textContent = moodText;
     $('fWhere').textContent = where; $('fMood').textContent = moodText; $('fShape').textContent = cap(d.shape || 'ball');
     $('fTicks').textContent = String(d.ticks || 0);
+    const w = S.wonder;
+    $('fWonder').textContent = w ? (w.answer ? w.text + ' He found out: ' + w.answer : w.text) : 'Not picked yet today';
+    const nFound = Object.values(S.secrets).filter(v => v === 'found').length, nAll = (world && world.secrets || []).length;
+    $('fSecrets').textContent = nAll ? nFound + ' of ' + nAll : String(nFound);
 
     renderLists();
     renderHighlights(d);
@@ -626,8 +663,8 @@
   }
 
   // ---------- Highlights: only the moments worth remembering ----------
-  const HL_ICON = { project: '\ud83d\udee0\ufe0f', first: '\u2728', wish: '\ud83c\udf20', yes: '\ud83c\udf89', no: '\u2601\ufe0f', built: '\ud83d\udd28', mood: '\ud83d\udcad', chat: '\ud83d\udcac', gift: '\ud83c\udf81' };
-  const HL_BIG = { built: 1, yes: 1, wish: 1, project: 1 };
+  const HL_ICON = { project: '\ud83d\udee0\ufe0f', first: '\u2728', wish: '\ud83c\udf20', yes: '\ud83c\udf89', no: '\u2601\ufe0f', built: '\ud83d\udd28', mood: '\ud83d\udcad', chat: '\ud83d\udcac', gift: '\ud83c\udf81', secret: '\ud83d\udddd\ufe0f', wonder: '\ud83e\udd14' };
+  const HL_BIG = { built: 1, yes: 1, wish: 1, project: 1, secret: 1, wonder: 1 };
   // Until his server sends highlights, pick them out of the recent diary.
   function guessHighlights(diary) {
     const out = [];
@@ -689,6 +726,7 @@
     const n = S.uses[id] || 0; $('tUses').textContent = n ? n + (n === 1 ? ' time' : ' times') : 'Not yet';
     const acts = $('tActs'); acts.textContent = '';
     (t.def.actions || []).forEach(a => acts.append(li(cap(a.verb), a.from && a.from !== st ? 'when ' + a.from : (a.to && a.to !== st ? 'makes it ' + a.to : ''))));
+    ((world && world.secrets) || []).filter(x => x.object === id && S.secrets[x.id]).forEach(x => acts.append(li(cap(x.verb), S.secrets[x.id] === 'found' ? 'secret he found' : 'secret he noticed')));
     if (openPanel !== 'thing') show('thing', true);
   }
   // A project card: the idea, the plan, the tokens Frederik approved, and what he made last.
@@ -743,6 +781,7 @@
     const ts = Math.max(0, 1 - tc - tk), sum = tc + tk + ts || 1;
     W.c = lerp(W.c, tc / sum, k); W.k = lerp(W.k, tk / sum, k); W.s = lerp(W.s, ts / sum, k); W.d = lerp(W.d, td, k);
     deform();
+    if (!reduce) Object.values(secretBits).forEach((b, i) => { if (b.glint.visible) { b.glint.rotation.y += dt * 2; b.glint.position.y = b.base + Math.sin(t * 2.5 + i) * 0.06; } });
     bodyMat.color.lerp(palette[S.sleeping ? 'sleepy' : (palette[S.mood] ? S.mood : 'content')], 0.03);
 
     // follow the route; potter about a little when standing still
