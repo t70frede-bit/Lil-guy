@@ -481,20 +481,20 @@
   body.userData.isGuy = true;
   const fc = document.createElement('canvas'); fc.width = fc.height = 512; const fx = fc.getContext('2d');
   const faceTex = new THREE.CanvasTexture(fc);
-  const face = new THREE.Mesh(new THREE.PlaneGeometry(1.25, 1.25), new THREE.MeshBasicMaterial({ map: faceTex, transparent: true, depthWrite: false }));
+  const face = new THREE.Mesh(new THREE.PlaneGeometry(1.45, 1.45), new THREE.MeshBasicMaterial({ map: faceTex, transparent: true, depthWrite: false }));
   guy.add(face);
   const limbMat = toon(0x2a2433);
   function arm(side) {
     const g = new THREE.Group();
-    mesh(cyl(0.045, 0.045, 0.5, 10), limbMat, 0, -0.25, 0, g);
-    mesh(sph(0.1, 16, 16), limbMat, 0, -0.52, 0, g);
+    mesh(cyl(0.05, 0.05, 0.34, 10), limbMat, 0, -0.17, 0, g);
+    mesh(sph(0.11, 16, 16), limbMat, 0, -0.36, 0, g);
     g.userData.side = side; guy.add(g); return g;
   }
   const armL = arm(-1), armR = arm(1);
   function leg() {
     const g = new THREE.Group();
-    mesh(cyl(0.05, 0.05, 0.32, 10), limbMat, 0, -0.16, 0, g);
-    const foot = mesh(sph(0.11, 16, 12), limbMat, 0, -0.33, 0.05, g); foot.scale.set(1.3, 0.6, 1.6);
+    mesh(cyl(0.055, 0.055, 0.22, 10), limbMat, 0, -0.11, 0, g);
+    const foot = mesh(sph(0.12, 16, 12), limbMat, 0, -0.23, 0.05, g); foot.scale.set(1.3, 0.6, 1.6);
     guy.add(g); return g;
   }
   const legL = leg(), legR = leg();
@@ -506,6 +506,86 @@
   const zzz = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.6), new THREE.MeshBasicMaterial({ map: labelTexture('Zzz', 'rgba(0,0,0,0)', '#6a4fd8'), transparent: true, depthWrite: false }));
   zzz.position.set(0.9, 2.2, 0); holder.add(zzz);
 
+  // A little thought symbol over his head (?, !, a heart, a star, a lightbulb, a raincloud, a note).
+  const symCanvas = document.createElement('canvas'); symCanvas.width = symCanvas.height = 256; const sx = symCanvas.getContext('2d');
+  const symTex = new THREE.CanvasTexture(symCanvas);
+  const sym = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.9), new THREE.MeshBasicMaterial({ map: symTex, transparent: true, depthWrite: false }));
+  sym.position.set(0.75, 2.35, 0); sym.visible = false; holder.add(sym);
+  const SYM = { until: 0, shownAt: 0, ch: '' };
+  function drawSymbol(ch) {
+    sx.clearRect(0, 0, 256, 256);
+    sx.fillStyle = 'rgba(255,255,255,0.92)'; sx.strokeStyle = 'rgba(42,36,51,0.18)'; sx.lineWidth = 6;
+    sx.beginPath(); sx.arc(128, 116, 92, 0, Math.PI * 2); sx.fill(); sx.stroke();
+    sx.beginPath(); sx.arc(70, 214, 16, 0, Math.PI * 2); sx.fill(); sx.beginPath(); sx.arc(44, 240, 9, 0, Math.PI * 2); sx.fill();
+    const ink = '#2a2433';
+    if (ch === 'cloud') {
+      sx.fillStyle = '#8fa7d6'; [[98, 112, 34], [140, 100, 42], [176, 120, 28], [128, 128, 34]].forEach(([x, y, r]) => { sx.beginPath(); sx.arc(x, y, r, 0, Math.PI * 2); sx.fill(); });
+      sx.strokeStyle = '#3b7dd8'; sx.lineWidth = 8; sx.lineCap = 'round'; [[100, 160], [130, 170], [160, 160]].forEach(([x, y]) => { sx.beginPath(); sx.moveTo(x, y); sx.lineTo(x - 6, y + 20); sx.stroke(); });
+    } else if (ch === 'heart') {
+      sx.fillStyle = '#e8577a'; sx.beginPath(); sx.moveTo(128, 170); sx.bezierCurveTo(40, 110, 80, 40, 128, 84); sx.bezierCurveTo(176, 40, 216, 110, 128, 170); sx.fill();
+    } else if (ch === 'star') {
+      sx.fillStyle = '#f5b82e'; sx.beginPath();
+      for (let i = 0; i < 10; i++) { const r = i % 2 ? 30 : 70, a = -Math.PI / 2 + i * Math.PI / 5; sx.lineTo(128 + Math.cos(a) * r, 118 + Math.sin(a) * r); }
+      sx.closePath(); sx.fill();
+    } else if (ch === 'bulb') {
+      sx.fillStyle = '#ffd23f'; sx.beginPath(); sx.arc(128, 100, 46, 0, Math.PI * 2); sx.fill();
+      sx.fillStyle = '#b0b4b8'; sx.fillRect(108, 140, 40, 30); sx.strokeStyle = ink; sx.lineWidth = 6; sx.beginPath(); sx.moveTo(110, 152); sx.lineTo(146, 152); sx.stroke();
+    } else {
+      sx.fillStyle = ch === '!' ? '#e8577a' : ch === '?' ? '#6a4fd8' : ink;
+      sx.font = '700 128px Fredoka, Trebuchet MS, sans-serif'; sx.textAlign = 'center'; sx.textBaseline = 'middle';
+      sx.fillText(ch, 128, 122);
+    }
+    symTex.needsUpdate = true;
+  }
+  function showSymbol(ch, ms) {
+    if (SYM.ch !== ch) { drawSymbol(ch); SYM.ch = ch; }
+    SYM.shownAt = performance.now(); SYM.until = SYM.shownAt + (ms || 2600);
+  }
+
+  // Tiny sounds, made in the browser (no files). Off unless the visitor turns them on.
+  let audio = null, soundOn = false;
+  try { soundOn = localStorage.getItem('lilguy-sound') === '1'; } catch (e) {}
+  const soundBtn = $('sound');
+  function ensureAudio() { try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); if (audio.state === 'suspended') audio.resume(); } catch (e) { audio = null; } return audio; }
+  const TUNES = { boop: [[520, 0.08]], hi: [[660, 0.07], [880, 0.09]], find: [[660, 0.07], [880, 0.07], [1170, 0.14]], oops: [[520, 0.1], [330, 0.18]],
+    happy: [[700, 0.06], [930, 0.06], [700, 0.06], [1050, 0.12]], hum: [[440, 0.14], [494, 0.14], [523, 0.2]], yawn: [[480, 0.3], [300, 0.35]] };
+  function chirp(kind) {
+    if (!soundOn || document.hidden) return;
+    const a = ensureAudio(); if (!a) return;
+    let at = a.currentTime + 0.01;
+    for (const [f, d] of TUNES[kind] || []) {
+      const o = a.createOscillator(), g = a.createGain();
+      o.type = 'sine'; o.frequency.setValueAtTime(f, at); o.frequency.exponentialRampToValueAtTime(f * 1.12, at + d);
+      g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(0.1, at + 0.015); g.gain.exponentialRampToValueAtTime(0.0001, at + d);
+      o.connect(g); g.connect(a.destination); o.start(at); o.stop(at + d + 0.03); at += d * 0.9;
+    }
+  }
+  if (soundBtn) {
+    soundBtn.setAttribute('aria-pressed', String(soundOn));
+    soundBtn.addEventListener('click', () => {
+      soundOn = !soundOn; soundBtn.setAttribute('aria-pressed', String(soundOn));
+      try { localStorage.setItem('lilguy-sound', soundOn ? '1' : '0'); } catch (e) {}
+      if (soundOn) chirp('hi');
+    });
+  }
+
+  // His own colour: the favourite he picked, matched from his words. Moods only tint it.
+  const COLOURS = { dandelion: 0xffd23f, sunflower: 0xffcf3a, sunny: 0xffcf4a, lemon: 0xfde36a, butter: 0xffe08a, honey: 0xf5b84a, yellow: 0xffc857, gold: 0xf5b82e, golden: 0xf5b82e,
+    mango: 0xffa94d, tangerine: 0xff9a3d, orange: 0xffa94d, apricot: 0xffb27a, peach: 0xffb88c, coral: 0xff8a73, tomato: 0xf26b5b, cherry: 0xe8505b, strawberry: 0xf2606f, red: 0xf26b5b,
+    bubblegum: 0xff9ec4, pink: 0xff9ec4, rose: 0xf28bb0, plum: 0xa0679e, purple: 0xb18cf0, lavender: 0xc4b0f0, lilac: 0xc9a8e8, violet: 0xa57be8,
+    sky: 0x6cc4ff, blue: 0x5fa8f5, ocean: 0x5fa3d8, sea: 0x5fb6c8, teal: 0x4fc1b5, turquoise: 0x4fd1c5, mint: 0x9be3c3, green: 0x7fcf72, leaf: 0x7fcf72, grass: 0x8fd46a, moss: 0x8fb85a, frog: 0x7fc45a, lime: 0xb6e05a,
+    cocoa: 0xb08360, brown: 0xc79a6b, cream: 0xf6e3b4, sand: 0xe6cf9e, white: 0xf3efe8, cloud: 0xf3efe8, grey: 0xb9b4c2, gray: 0xb9b4c2, silver: 0xc7c9d1 };
+  let sigWords = null, sigColour = null;
+  function signatureColour() {
+    const words = S.self && S.self.colour ? S.self.colour.toLowerCase() : '';
+    if (words === sigWords) return sigColour;
+    sigWords = words; sigColour = null;
+    for (const w of words.split(/[^a-z]+/)) if (COLOURS[w] !== undefined) { sigColour = new THREE.Color(COLOURS[w]); break; }
+    return sigColour;
+  }
+  const TINT = { content: 0, curious: 0.12, proud: 0, lonely: 0.5, feisty: 0.45, sleepy: 0.4 };
+  const tmpColour = new THREE.Color();
+
   function moods() {
     const n = S.needs;
     const sleepy = S.sleeping ? 1 : clamp((0.3 - n.energy) / 0.3);
@@ -513,7 +593,7 @@
   }
   const palette = { content: new THREE.Color(0xffc857), curious: new THREE.Color(0xffb347), lonely: new THREE.Color(0x8fa7d6), feisty: new THREE.Color(0xff7a6b), sleepy: new THREE.Color(0xb9a8e0), proud: new THREE.Color(0xffd23f) };
   const W = { s: 1, c: 0, k: 0, d: 0 };
-  const F = { open: 1, size: 1, brow: 0, curve: 0.5, mouthOpen: 0.1, look: 0, blink: 0 };
+  const F = { open: 1, size: 1, brow: 0, curve: 0.5, mouthOpen: 0.1, look: 0, lookY: 0, blink: 0, grin: 0, blush: 0, wow: 0, wobble: 0, dizzy: 0 };
   let lastW = '';
   function deform() {
     const key = [W.s, W.c, W.k, W.d].map(v => v.toFixed(3)).join();
@@ -526,31 +606,56 @@
       const spike = clamp((m - 0.935) / 0.065) * 0.75 * clamp((0.55 - z) / 0.3);
       const r = W.s + W.c * (0.84 / n) + W.k * (1 + spike);
       const sag = 1 - W.d * 0.18 * clamp(y);
-      a[i] = x * r * (1 + W.d * 0.12); a[i + 1] = y * r * sag; a[i + 2] = z * r * (1 + W.d * 0.08);
+      const pear = 1 + 0.05 * clamp(-y); // a little bottom-heavy, so he sits and squashes nicely
+      a[i] = x * r * pear * (1 + W.d * 0.12); a[i + 1] = y * r * sag * 0.97; a[i + 2] = z * r * pear * (1 + W.d * 0.08);
     }
     pos.needsUpdate = true; geo.computeVertexNormals();
   }
   function drawFace() {
     fx.clearRect(0, 0, 512, 512);
-    const ink = '#2a2433', eyeY = 220, gap = 92, lx = 256 - gap + F.look * 18, rx = 256 + gap + F.look * 18;
-    const open = clamp(F.open * (1 - F.blink));
+    // Big eyes set low on the face, like a baby animal's: that is most of his charm.
+    const ink = '#2a2433', eyeY = 262 - F.lookY * 12, gap = 100, lx = 256 - gap + F.look * 22, rx = 256 + gap + F.look * 22;
+    const open = clamp(F.open * (1 - F.blink)), sz = F.size * 1.4 * (1 + F.wow * 0.12);
+    fx.strokeStyle = ink; fx.fillStyle = ink; fx.lineCap = 'round';
     for (const ex of [lx, rx]) {
-      if (open < 0.2) { fx.strokeStyle = ink; fx.lineWidth = 13; fx.lineCap = 'round'; fx.beginPath(); fx.arc(ex, eyeY - 8, 28 * F.size, 0.15 * Math.PI, 0.85 * Math.PI); fx.stroke(); continue; }
-      fx.fillStyle = ink; fx.beginPath(); fx.ellipse(ex, eyeY, 30 * F.size, Math.max(4, 44 * F.size * open), 0, 0, Math.PI * 2); fx.fill();
-      if (open > 0.35) { fx.fillStyle = '#fff'; fx.beginPath(); fx.arc(ex + 10, eyeY - 14 * F.size, 9 * F.size, 0, Math.PI * 2); fx.fill(); }
+      if (F.dizzy > 0.5) { fx.lineWidth = 14; const r = 26 * F.size; fx.beginPath(); fx.moveTo(ex - r, eyeY - r); fx.lineTo(ex + r, eyeY + r); fx.moveTo(ex + r, eyeY - r); fx.lineTo(ex - r, eyeY + r); fx.stroke(); continue; }
+      if (F.grin > 0.5 && open >= 0.2) { fx.lineWidth = 16; fx.beginPath(); fx.arc(ex, eyeY + 18, 32 * F.size, 1.15 * Math.PI, 1.85 * Math.PI); fx.stroke(); continue; }
+      if (open < 0.2) { fx.lineWidth = 14; fx.beginPath(); fx.arc(ex, eyeY - 8, 32 * F.size, 0.15 * Math.PI, 0.85 * Math.PI); fx.stroke(); continue; }
+      fx.beginPath(); fx.ellipse(ex, eyeY, 30 * sz, Math.max(5, 42 * sz * open), 0, 0, Math.PI * 2); fx.fill();
+      if (open > 0.35) {
+        fx.fillStyle = '#fff';
+        fx.beginPath(); fx.arc(ex + 11 * sz, eyeY - 15 * sz, 11 * sz, 0, Math.PI * 2); fx.fill();
+        fx.beginPath(); fx.arc(ex - 10 * sz, eyeY + 14 * sz, 4.5 * sz, 0, Math.PI * 2); fx.fill();
+        fx.fillStyle = ink;
+      }
     }
     if (Math.abs(F.brow) > 0.05) {
-      fx.strokeStyle = ink; fx.lineWidth = 14; fx.lineCap = 'round';
-      for (const [ex, dir] of [[lx, 1], [rx, -1]]) { fx.beginPath(); fx.moveTo(ex - 34, eyeY - 66 + F.brow * 18 * dir); fx.lineTo(ex + 34, eyeY - 66 - F.brow * 18 * dir); fx.stroke(); }
+      fx.lineWidth = 13;
+      for (const [ex, dir] of [[lx, 1], [rx, -1]]) { fx.beginPath(); fx.moveTo(ex - 32, eyeY - 88 + F.brow * 18 * dir); fx.lineTo(ex + 32, eyeY - 88 - F.brow * 18 * dir); fx.stroke(); }
     }
-    fx.fillStyle = 'rgba(255,120,120,0.35)';
-    for (const ex of [lx - 30, rx + 30]) { fx.beginPath(); fx.ellipse(ex, eyeY + 70, 30, 16, 0, 0, Math.PI * 2); fx.fill(); }
-    const my = 330, w = 70, c = F.curve * 46;
-    fx.strokeStyle = ink; fx.lineWidth = 13; fx.lineCap = 'round'; fx.fillStyle = ink;
-    fx.beginPath(); fx.moveTo(256 - w, my); fx.quadraticCurveTo(256, my + c, 256 + w, my);
-    if (F.mouthOpen > 0.15) { fx.quadraticCurveTo(256, my + c + F.mouthOpen * 60, 256 - w, my); fx.fill(); }
-    fx.stroke(); faceTex.needsUpdate = true;
+    fx.fillStyle = 'rgba(255,110,120,' + (0.32 + F.blush * 0.35).toFixed(2) + ')';
+    for (const ex of [lx - 40, rx + 40]) { fx.beginPath(); fx.ellipse(ex, eyeY + 74, 34, 18, 0, 0, Math.PI * 2); fx.fill(); }
+    const my = 372, w = 50;
+    fx.lineWidth = 12; fx.fillStyle = ink;
+    if (F.wow > 0.35) { fx.beginPath(); fx.ellipse(256, my + 6, 18 + F.wow * 6, 12 + F.wow * 18, 0, 0, Math.PI * 2); fx.fill(); }
+    else if (F.wobble > 0.35) {
+      fx.beginPath(); fx.moveTo(256 - w, my + 8);
+      for (let i = 1; i <= 8; i++) fx.lineTo(256 - w + i * (w * 2 / 8), my + 8 + (i % 2 ? -7 : 7) * F.wobble);
+      fx.stroke();
+    } else {
+      const c = F.curve * 42;
+      fx.beginPath(); fx.moveTo(256 - w, my); fx.quadraticCurveTo(256, my + c, 256 + w, my);
+      if (F.mouthOpen > 0.15) { fx.quadraticCurveTo(256, my + c + F.mouthOpen * 56, 256 - w, my); fx.fill(); }
+      fx.stroke();
+    }
+    faceTex.needsUpdate = true;
   }
+
+  // ---------- Little reactions ----------
+  // One at a time: a tumble when a try goes wrong, a double-take on a secret, a happy wiggle, idle fidgets.
+  const R = { kind: '', t0: 0, until: 0 };
+  function react(kind, ms) { R.kind = kind; R.t0 = performance.now(); R.until = R.t0 + ms; }
+  const FIDGETS = ['look', 'tap', 'scratch', 'hum', 'yawn'];
 
   // ---------- Walking ----------
   // He walks along waypoints; going in or out goes through the door.
@@ -562,9 +667,13 @@
     Object.values(things).forEach(th => { if (th.group.userData.rest) th.group.userData.rest(); });
     actTarget = object; actVerb = verb || ''; actUntil = 0; actPending = LIE.test(actVerb) ? 12000 : 5000; // starts once he has walked there
     if (line) toast(line);
+    if (/^oops$/.test(actVerb)) { actPending = 0; react('oops', 1500); showSymbol('!?', 2200); chirp('oops'); }
+    else chirp('boop');
   }
+  let windUpUntil = 0;
   function walkTo(p) {
     const from = [gx, gz];
+    windUpUntil = performance.now() + (reduce ? 0 : 320); // a little wind-up before he sets off
     route = [];
     if (inside(from) && !inside(p)) route.push(DOOR_IN, DOOR_OUT);
     else if (!inside(from) && inside(p)) route.push(DOOR_OUT, DOOR_IN);
@@ -600,7 +709,22 @@
     if (!d || !d.needs) return;
     S.needs = d.needs; S.sleeping = !!d.sleeping; S.mood = d.mood || 'content';
     S.objects = d.objects || {}; S.built = d.built || []; S.uses = d.uses || {}; S.items = d.items || []; S.wishes = d.wishes || []; S.projects = d.projects || [];
-    S.secrets = d.secrets || {}; S.wonder = d.wonder || null;
+    const prevSecrets = S.secrets || {}, prevMood = S.mood;
+    S.secrets = d.secrets || {}; S.wonder = d.wonder || null; S.self = d.self || null;
+    if (!first) {
+      const changed = Object.keys(S.secrets).filter(k => S.secrets[k] !== prevSecrets[k]);
+      if (changed.some(k => S.secrets[k] === 'found')) { react('doubletake', 1800); showSymbol('!', 3000); chirp('find'); }
+      else if (changed.length) showSymbol('!', 2600);
+      const newest = (d.highlights || [])[(d.highlights || []).length - 1];
+      if (newest && newest.at !== S.lastHighlight) {
+        if (newest.kind === 'theory') showSymbol('bulb', 3200);
+        else if (newest.kind === 'ritual') showSymbol('heart', 3200);
+        else if (newest.kind === 'goal') { showSymbol('star', 4000); react('wiggle', 1800); chirp('happy'); }
+        else if (newest.kind === 'no') react('sad', 3000);
+      }
+      if (S.mood === 'proud' && prevMood !== 'proud' && R.kind !== 'doubletake') { react('wiggle', 1700); showSymbol('star', 3000); chirp('happy'); }
+    }
+    const hl = d.highlights || []; S.lastHighlight = hl.length ? hl[hl.length - 1].at : S.lastHighlight;
     if (world) { syncBuilt(); syncGifts(); syncSecrets(); }
     Object.values(things).forEach(t => t.update(S.objects[t.def.id] || t.def.state));
 
@@ -781,7 +905,7 @@
   // ---------- Animation loop ----------
   function resize() { renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); }
   addEventListener('resize', resize); resize();
-  let last = performance.now(), t = 0, faceTimer = 0, roll = 0, blinkTimer = 2, wanderTimer = 4, idleOffset = [0, 0];
+  let last = performance.now(), t = 0, faceTimer = 0, roll = 0, blinkTimer = 2, wanderTimer = 4, idleOffset = [0, 0], fidgetTimer = 6, moodSymTimer = 8;
   function frame(now) {
     const dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt;
     const m = moods(); const k = reduce ? 0.03 : 0.06;
@@ -790,18 +914,60 @@
     W.c = lerp(W.c, tc / sum, k); W.k = lerp(W.k, tk / sum, k); W.s = lerp(W.s, ts / sum, k); W.d = lerp(W.d, td, k);
     deform();
     if (!reduce) Object.values(secretBits).forEach((b, i) => { if (b.glint.visible) { b.glint.rotation.y += dt * 2; b.glint.position.y = b.base + Math.sin(t * 2.5 + i) * 0.06; } });
-    bodyMat.color.lerp(palette[S.sleeping ? 'sleepy' : (palette[S.mood] ? S.mood : 'content')], 0.03);
+    const moodKey = S.sleeping ? 'sleepy' : (palette[S.mood] ? S.mood : 'content');
+    const sig = signatureColour();
+    // With his own colour he stays recognisably him; moods only tint it. Without one, moods colour him.
+    if (sig) { tmpColour.copy(sig).lerp(palette[moodKey], TINT[moodKey] || 0); if (moodKey === 'proud') tmpColour.offsetHSL(0, 0.06, 0.07); } // proud: a little brighter, same him
+    bodyMat.color.lerp(sig ? tmpColour : palette[moodKey], 0.03);
+    const proud = S.mood === 'proud' && !S.sleeping ? 1 : 0;
+    // reactions and symbols are timed with performance.now(), which can run a little ahead of the frame time
+    const pnow = performance.now();
+    const rp = R.kind && pnow < R.until ? clamp((pnow - R.t0) / (R.until - R.t0)) : -1;
+    if (rp < 0) R.kind = '';
+    // reactions that move his whole body
+    let tilt = 0, extraTurn = 0, reactHop = 0;
+    if (rp >= 0 && !reduce) {
+      if (R.kind === 'oops') { tilt = Math.sin(Math.min(1, rp * 1.3) * Math.PI) * 1.35; reactHop = rp > 0.75 ? Math.sin((rp - 0.75) * 4 * Math.PI) * 0.12 : 0; }
+      else if (R.kind === 'wiggle') { tilt = Math.sin(t * 18) * 0.28 * (1 - rp); reactHop = Math.abs(Math.sin(t * 11)) * 0.2 * (1 - rp); }
+      else if (R.kind === 'doubletake') { extraTurn = rp < 0.25 ? -0.5 : rp < 0.35 ? 0.35 : 0.15 * (1 - rp); reactHop = rp > 0.3 && rp < 0.6 ? Math.sin((rp - 0.3) / 0.3 * Math.PI) * 0.45 : 0; }
+      else if (R.kind === 'look') extraTurn = Math.sin(rp * Math.PI * 2) * 0.7;
+      else if (R.kind === 'hum') tilt = Math.sin(t * 5) * 0.08;
+    }
 
     // follow the route; potter about a little when standing still
     let moving = false, dirx = 0;
     if (route.length) {
       const [tx, tz] = route[0]; const dx = tx - gx, dz = tz - gz, dist = Math.hypot(dx, dz);
       const speed = (W.c < 0.3 ? 1.8 : 0.8);
-      if (dist < 0.05) route.shift();
+      if (now < windUpUntil) { /* winding up: crouch first, then go */ }
+      else if (dist < 0.05) route.shift();
       else { const step = Math.min(dist, speed * dt); gx += dx / dist * step; gz += dz / dist * step; moving = true; dirx = dx; facing = Math.atan2(dx, dz); if (W.c < 0.3) roll -= step / 0.42; }
     } else if (!S.sleeping && now > actUntil && m.lonely < 0.5) {
       wanderTimer -= dt;
       if (wanderTimer < 0) { wanderTimer = 3 + Math.random() * 5; idleOffset = [(Math.random() - 0.5) * 0.6, (Math.random() - 0.5) * 0.4]; }
+      // now and then a little fidget: look around, tap a foot, scratch his head, hum, yawn
+      fidgetTimer -= dt;
+      if (fidgetTimer < 0 && !R.kind && !reduce) {
+        fidgetTimer = 7 + Math.random() * 7;
+        const pick = FIDGETS.filter(f => f !== 'yawn' || S.needs.energy < 0.5)[Math.floor(Math.random() * (S.needs.energy < 0.5 ? 5 : 4))];
+        react(pick, pick === 'look' ? 2200 : 1700);
+        if (pick === 'hum') { showSymbol('\u266a', 1800); chirp('hum'); } else if (pick === 'yawn') chirp('yawn');
+      }
+    }
+    // his mood shows as a symbol now and then, so you can read him from across the screen
+    moodSymTimer -= dt;
+    if (moodSymTimer < 0) {
+      moodSymTimer = 9 + Math.random() * 6;
+      if (pnow > SYM.until && !S.sleeping) {
+        if (proud) showSymbol('star', 2400); else if (m.lonely > 0.5) showSymbol('cloud', 2600); else if (m.curious > 0.5) showSymbol('?', 2200);
+      }
+    }
+    sym.visible = pnow < SYM.until && !S.sleeping;
+    if (sym.visible) {
+      const age = Math.max(0, pnow - SYM.shownAt) / 1000, left = (SYM.until - pnow) / 1000;
+      sym.scale.setScalar(reduce ? 1 : Math.min(1, age * 5) * Math.min(1, left * 4 + 0.2));
+      sym.position.y = 2.35 + (reduce ? 0 : Math.sin(t * 2.2) * 0.06);
+      sym.quaternion.copy(camera.quaternion);
     }
     if (!moving && !reduce) { const sp = spotOf(S.place) || [gx, gz]; const tx = sp[0] + (S.sleeping ? 0 : idleOffset[0]), tz = sp[1] + (S.sleeping ? 0 : idleOffset[1]); gx = lerp(gx, tx, 0.01); gz = lerp(gz, tz, 0.01); }
     if (!moving) { const q = Math.PI / 2; roll = lerp(roll, Math.round(roll / q) * q, 0.06); }
@@ -812,7 +978,7 @@
     const acting = now < actUntil && !moving;
     let faceTo = moving ? facing : 0;
     if (acting && things[actTarget]) { const p = things[actTarget].group.position; faceTo = Math.atan2(p.x - gx, p.z - gz) * 0.6; }
-    holder.rotation.y = lerp(holder.rotation.y, faceTo, 0.08);
+    holder.rotation.y = lerp(holder.rotation.y, faceTo + extraTurn, R.kind === 'doubletake' ? 0.3 : 0.08);
     if (acting && actTarget === 'ball' && things.ball) { const b = things.ball.group.userData.ball; b.rotation.x += dt * 4; }
     const tgtThing = things[actTarget];
     if (acting && tgtThing && tgtThing.group.userData.act) tgtThing.group.userData.act(t, actVerb, dt);
@@ -824,13 +990,26 @@
     if (things.blanket) things.blanket.group.visible = !lying;
 
     const radius = W.s + W.c * 0.84 + W.k;
-    const hop = (!moving && !reduce && !S.sleeping && !(acting && LIE.test(actVerb)) && (acting || m.curious > 0.3)) ? Math.abs(Math.sin(t * (acting ? 8 : 5))) * (acting ? 0.25 : 0.08) : 0;
+    const bouncy = acting || m.curious > 0.3 || proud;
+    const hopAmp = acting ? 0.25 : proud ? 0.14 : 0.08;
+    const hopRaw = (!moving && !reduce && !S.sleeping && !(acting && LIE.test(actVerb)) && bouncy) ? Math.abs(Math.sin(t * (acting ? 8 : proud ? 7 : 5))) : -1;
+    let hop = hopRaw >= 0 ? hopRaw * hopAmp : 0;
+    hop += reactHop;
+    // squash and stretch: squashed when landing or winding up, stretched in the air
+    const windingUp = route.length && now < windUpUntil;
+    let sy = 1;
+    if (windingUp) sy = 0.84;
+    else if (hopRaw >= 0) sy = 1 + 0.2 * (hopRaw - 0.35) * (hopAmp / 0.12);
+    else if (R.kind === 'doubletake' && rp > 0.25 && rp < 0.32) sy = 0.85;
+    sy = Math.max(0.8, Math.min(1.2, sy));
+    const sxz = 1 / Math.sqrt(sy);
+    guy.scale.set(lerp(guy.scale.x, sxz, 0.35), lerp(guy.scale.y, sy, 0.35), lerp(guy.scale.z, sxz, 0.35));
     const shiver = m.feisty > 0.4 && !reduce ? Math.sin(t * 40) * 0.015 * m.feisty : 0;
-    const legH = 0.42 * (moving && W.c < 0.3 ? 0.15 : 1);
+    const legH = 0.3 * (moving && W.c < 0.3 ? 0.15 : 1);
     guy.position.y = lerp(guy.position.y, lying ? radius * 0.92 + Math.sin(t * 1.2) * 0.04 : radius * (1 - W.d * 0.12) + legH + hop, 0.15);
     guy.position.x = shiver;
     guy.rotation.x = lerp(guy.rotation.x, lying ? -0.8 : 0, 0.08);
-    guy.rotation.z = lerp(guy.rotation.z, lying ? 0.35 : 0, 0.08);
+    guy.rotation.z = lerp(guy.rotation.z, lying ? 0.35 : tilt, R.kind === 'wiggle' ? 0.4 : 0.12);
     if (lying) {
       const bp = things.bed.group.position;
       gx = lerp(gx, bp.x - 0.3, 0.1); gz = lerp(gz, bp.z, 0.1); route = [];
@@ -842,6 +1021,7 @@
     shadow.scale.setScalar(radius * (1 - hop));
     legL.position.set(-0.32 * radius, -radius * (1 - W.d * 0.12) + 0.05, 0); legR.position.set(0.32 * radius, legL.position.y, 0);
     legL.scale.y = legR.scale.y = lerp(legL.scale.y, lying ? 0.01 : moving && W.c < 0.3 ? 0.15 : 1, 0.15);
+    legR.rotation.x = lerp(legR.rotation.x, R.kind === 'tap' && !reduce ? -Math.abs(Math.sin(t * 14)) * 0.6 : 0, 0.3);
     const armTuck = lying ? 0.01 : moving && W.c < 0.3 ? 0.2 : (m.lonely > 0.5 ? 0.6 : 1);
     [armL, armR].forEach(a => {
       const s = a.userData.side; a.position.set(s * radius * 0.96, 0.05, 0);
@@ -851,6 +1031,10 @@
       if (m.lonely > 0.5) ang = 0.1;
       if (m.sleepy > 0.5) ang = 0.05;
       if (acting) ang = /punch/.test(actVerb) ? 1.5 + Math.abs(Math.sin(t * 10 + s * 1.6)) * 0.4 : 2.4 + Math.sin(t * 10 + s * 1.5) * 0.4;
+      if (R.kind === 'scratch' && s > 0) ang = 2.7 + Math.sin(t * 16) * 0.2;
+      if (R.kind === 'wiggle' || (R.kind === 'doubletake' && rp > 0.3)) ang = 2.5 + Math.sin(t * 12 + s) * 0.3;
+      if (R.kind === 'oops') ang = 1.6 + Math.sin(t * 9 + s) * 0.6;
+      if (R.kind === 'yawn') ang = 2.2;
       a.rotation.z = lerp(a.rotation.z, s * ang, 0.12);
       a.scale.setScalar(lerp(a.scale.x, armTuck, 0.1));
     });
@@ -860,9 +1044,15 @@
     face.position.set(0, 0.06 - W.d * 0.1, radius * (1 + W.d * 0.1) + 0.04);
     blinkTimer -= dt; if (blinkTimer < 0) { F.blink = 1; blinkTimer = 2 + Math.random() * 3; }
     F.blink = Math.max(0, F.blink - dt * 8);
-    const tgt = { open: 1 - m.sleepy * 0.9, size: 1 + m.curious * 0.25 - m.lonely * 0.1 + (acting ? 0.15 : 0), brow: m.lonely * 0.6 - m.feisty,
-      curve: 0.6 - m.lonely * 1.0 - m.feisty * 0.9 + m.curious * 0.3 - m.sleepy * 0.3 + (acting ? 0.4 : 0), mouthOpen: m.curious * 0.6 + (S.sleeping ? 0.2 : 0) + (acting ? 0.4 : 0),
-      look: moving ? Math.sign(dirx) * 0.5 : Math.sin(t * 0.4) * 0.4 };
+    const react1 = k => (R.kind === k ? 1 : 0);
+    const yawn = react1('yawn') * Math.sin(Math.max(0, rp) * Math.PI);
+    const wow = react1('doubletake') * (rp > 0.25 && rp < 0.85 ? 1 : 0);
+    const tgt = { open: (1 - m.sleepy * 0.9) * (1 - yawn * 0.8), size: 1 + m.curious * 0.2 - m.lonely * 0.1 + (acting ? 0.12 : 0), brow: m.lonely * 0.6 - m.feisty,
+      curve: 0.6 - m.lonely * 1.0 - m.feisty * 0.9 + m.curious * 0.3 - m.sleepy * 0.3 + (acting ? 0.4 : 0) + proud * 0.3, mouthOpen: m.curious * 0.6 + (S.sleeping ? 0.2 : 0) + (acting ? 0.4 : 0) + yawn,
+      look: R.kind === 'doubletake' ? (rp < 0.25 ? -1 : 0.2) : R.kind === 'look' ? Math.sin(rp * Math.PI * 2) * 1.1 : moving ? Math.sign(dirx) * 0.5 : acting ? 0 : Math.sin(t * 0.4) * 0.4,
+      lookY: R.kind === 'scratch' ? 0.8 : acting ? -0.3 : 0,
+      grin: (proud || react1('wiggle')) && !acting ? 1 : 0, blush: Math.max(proud, react1('wiggle'), acting ? 0.4 : 0),
+      wow, wobble: react1('sad') || (m.lonely > 0.7 ? 1 : 0), dizzy: react1('oops') * (rp < 0.85 ? 1 : 0) };
     for (const key in tgt) F[key] = lerp(F[key], tgt[key], 0.08);
     faceTimer -= dt; if (faceTimer <= 0) { faceTimer = 1 / 30; drawFace(); }
 

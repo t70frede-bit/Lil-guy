@@ -104,6 +104,9 @@ details.all summary { cursor: pointer; font: 600 13px var(--display); color: var
   border-radius: 14px; padding: 8px 14px; font: 500 14px var(--display); text-align: center; opacity: 0; transition: opacity .35s, transform .35s; pointer-events: none; }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 .hint { position: fixed; right: var(--right); top: var(--top); font-size: 11px; color: var(--muted); padding: 4px 10px; border-radius: 999px; }
+.sound { position: fixed; right: var(--right); top: calc(var(--top) + 34px); width: 40px; height: 40px; border-radius: 999px; display: grid; place-items: center; color: var(--ink); cursor: pointer; padding: 0; }
+.sound svg { width: 20px; height: 20px; }
+.sound[aria-pressed="false"] .on, .sound[aria-pressed="true"] .off { display: none; }
 
 /* Phones: bubble under the status card, panels become bottom sheets */
 @media (max-width: 640px) {
@@ -118,6 +121,7 @@ details.all summary { cursor: pointer; font: 600 13px var(--display); color: var
   .panel[hidden] { transform: translateY(24px); }
   .toast { bottom: calc(var(--bottom) + 76px); }
   .hint { display: none; }
+  .sound { top: auto; bottom: calc(var(--bottom) + 84px); width: 38px; height: 38px; }
 }
 @media (prefers-reduced-motion: reduce) { .live.on i { animation: none; } .panel { transition: none; } }
 </style>
@@ -183,6 +187,10 @@ details.all summary { cursor: pointer; font: 600 13px var(--display); color: var
 
 <div class="toast glass" id="toast" role="status"></div>
 <div class="hint glass">Drag to look around, tap things</div>
+<button class="sound glass" id="sound" type="button" aria-pressed="false" aria-label="Sound">
+  <svg class="off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M17 9l4 6M21 9l-4 6"/></svg>
+  <svg class="on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>
+</button>
 
 <section class="panel glass" id="p-diary" hidden aria-label="Highlights">
   <header><h2>Highlights</h2><button class="close" type="button" aria-label="Close">&times;</button></header>
