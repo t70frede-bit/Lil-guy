@@ -122,3 +122,16 @@ test("a step that comes out broken is paid for but not counted as done", async (
   assert.equal(s.projects[0].pieces.length, 0);
   assert.equal(s.projects[0].used, 1000);
 });
+
+test("he does not hand creative choices to Frederik", async () => {
+  const { asksFrederikToChoose } = await import("../src/lilguy.js");
+  for (const t of ["What should my friend be called?", "What should I name my friend?", "Can you pick a colour for my friend?", "What kind of friend should I make?", "Which name do you think is best?", "What do you want my friend to look like?"])
+    assert.ok(asksFrederikToChoose(t), t);
+  for (const t of ["I named my friend Bobble! He is blue.", "Are you awake?", "I made a friend called Pip. Do you like him?", "Hello Frederik!"])
+    assert.ok(!asksFrederikToChoose(t), t);
+  const s = freshState(); const said: string[] = [];
+  await doMove(s, { type: "message", text: "What should my friend be called?" }, { ...outbox(), async say(t: string) { said.push(t); } });
+  assert.equal(said.length, 0);
+  await doMove(s, { type: "message", text: "I named my friend Pip!" }, { ...outbox(), async say(t: string) { said.push(t); } });
+  assert.deepEqual(said, ["I named my friend Pip!"]);
+});

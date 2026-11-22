@@ -123,6 +123,7 @@ export async function doMove(s: State, move: Move & { reason?: string }, out: Ou
     case "message": {
       const text = (move.text ?? "").trim().slice(0, 500);
       if (!text) break;
+      if (asksFrederikToChoose(text)) { note(s, "Almost asked Frederik to choose for him, then decided to pick himself."); break; }
       if (!canMessage(s)) { note(s, "Wanted to message Frederik but has said enough today."); break; }
       countMessage(s);
       s.needs = moveEffect("message", s.needs);
@@ -347,4 +348,20 @@ export function resolveMore(s: State, id: string, approved: boolean): Project | 
     highlight(s, "project", `Stopped the project "${p.title}" after ${p.pieces.length} of ${p.steps.length} steps.`);
   }
   return p;
+}
+
+/**
+ * Creative choices are his own. A message that hands a choice to Frederik ("what should my friend
+ * be called?", "can you pick?") is not sent; the prompt tells him to decide and say what he chose.
+ */
+export function asksFrederikToChoose(text: string): boolean {
+  const t = text.toLowerCase();
+  if (!t.includes("?")) return false;
+  return /\b(what|which) (should|do you think) (it|he|she|they|my friend|the friend|i)\b/.test(t)
+    || /\bwhat (name|colou?r|shape|kind)\b/.test(t)
+    || /\b(should i (call|name)|what should i (call|name|make|build|design))\b/.test(t)
+    || /\b(can|could|would|will) you (pick|choose|decide|name)\b/.test(t)
+    || /\b(you (pick|choose|decide)|help me (choose|pick|decide))\b/.test(t)
+    || /\bwhat do you want (it|my friend|the friend) to\b/.test(t)
+    || /\bwhich (name|one|colou?r|kind)\b.*\b(you|best|better)\b/.test(t);
 }

@@ -53,7 +53,7 @@ function workshopText(s: State, model: string): string {
   const ex = estimate(4, model);
   return [
     `You have a workshop outside. There you can plan your own projects: designing a new friend, making up a game, writing a story, inventing a thing, a drawing, or something else.`,
-    `To start one, use propose_project with a name (item), a kind, the idea (text), a plan of 2 to 8 steps, and the need it is for. The wishmaster works out how many tokens it will take (thinking costs tokens, and tokens cost Frederik money; 4 steps is about ${ex.tokens} tokens, ${kr(ex.dkk)}) and asks Frederik. Nothing happens until he says yes. Fewer steps cost less.`,
+    `To start one, use propose_project with a name (item), a kind, the idea (text), a plan of 2 to 8 steps, and the need it is for. The wishmaster works out how many tokens it will take (thinking costs tokens, and tokens cost Frederik money; 4 steps is about ${ex.tokens} tokens, ${kr(ex.dkk)}) and asks Frederik. Nothing happens until he says yes. Fewer steps cost less. You come up with the idea, the kind, the name and the plan yourself; Frederik only says yes or no to the cost.`,
     active ? `Your project right now: "${active.title}" (${active.kind}). Done ${active.pieces.length} of ${active.steps.length} steps. Next step: ${active.steps[active.pieces.length]}. Use work_on_project to work on it.` : "You have no project going right now.",
     waiting ? `Waiting for Frederik: "${waiting.title}" (${waiting.status}). You cannot start another project until he answers.` : "",
     recentlyToldNo(s.projects) ? "Frederik said not now to your last project idea a little while ago. Give it some hours before you ask for a new one." : "",
@@ -101,6 +101,7 @@ const RULES = `Pick 1 to 3 moves from the menu. Rules:
 - Prefer using things in ways you have not tried before, or going somewhere new. To use a thing, pick "use" with its name as target and one of its listed actions.
 - Wishing for a place to be built is a big wish. Only do it when a need keeps coming back and nothing you have fixes it, and say which need.
 - Only send Frederik a message when you have something real to say or ask. Keep it to one or two short sentences.
+- Never ask Frederik to decide things for you, like what to make, what a friend should be or what its name should be. Decide yourself, put it in your project, and tell him what you picked. The only thing Frederik decides is yes or no on the cost, through the wishmaster.
 - A project is a big thing. Only propose one when a need explains it (often fulfilled or curiosity, or company for a friend), and say which need. Keep the plan small.
 - When you have an approved project, working on it in the workshop is a great way to spend your time.
 - When energy is very low, sleep.`;
@@ -127,7 +128,7 @@ export class ClaudeBrain implements Brain {
       model: this.model,
       max_tokens: 1000,
       output_config: { effort: "low" },
-      system: [{ type: "text", text: `${CHARACTER}\n\nFrederik is messaging you on Telegram. Answer in one to three short sentences, in your own voice. Never promise things on behalf of the wishmaster.`, cache_control: { type: "ephemeral" } }],
+      system: [{ type: "text", text: `${CHARACTER}\n\nFrederik is messaging you on Telegram. Answer in one to three short sentences, in your own voice. Never promise things on behalf of the wishmaster. Do not ask him to choose things for you (names, looks, what to make); you decide those yourself and tell him.`, cache_control: { type: "ephemeral" } }],
       messages: [{ role: "user", content: `${situation(s, this.model)}\n\nRecent chat:\n${history}\n\nFrederik just wrote: ${incoming}` }],
     });
     if (res.stop_reason === "refusal") return "...";
@@ -140,7 +141,7 @@ export class ClaudeBrain implements Brain {
     const request = {
       model: this.model,
       output_config: { effort: "low" as const, format: zodOutputFormat(Piece) },
-      system: [{ type: "text" as const, text: `${CHARACTER}\n\nYou are in your workshop, working on one of your own projects that Frederik said yes to. Do one step at a time and write down what you made. Stay small and in your own voice. You cannot run code or reach the internet; you make ideas, plans, designs, rules and stories.`, cache_control: { type: "ephemeral" as const } }],
+      system: [{ type: "text" as const, text: `${CHARACTER}\n\nYou are in your workshop, working on one of your own projects that Frederik said yes to. Do one step at a time and write down what you made. Stay small and in your own voice. You cannot run code or reach the internet; you make ideas, plans, designs, rules and stories. Make every choice yourself (names, looks, colours, rules); never leave a question for Frederik to answer.`, cache_control: { type: "ephemeral" as const } }],
       messages: [{ role: "user" as const, content: [
         `Project: "${p.title}" (${p.kind}). Idea: ${p.idea}`,
         `Plan: ${p.steps.map((x, i) => `${i + 1}. ${x}`).join(" ")}`,
