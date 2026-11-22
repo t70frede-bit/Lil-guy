@@ -11,6 +11,8 @@ export interface Action {
   secret?: string;
   /** Different things that can happen each time (cloud shapes, shadow animals). */
   lines?: string[];
+  /** Looking after something (like his plant): never gets boring, so repeats do not fade. */
+  care?: boolean;
 }
 /**
  * A secret hidden in his world. Looking closer at its thing makes him notice it (the hint);

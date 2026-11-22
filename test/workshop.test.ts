@@ -1,9 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { RuleBrain, type Brain, type WorkResult } from "../src/brain.js";
-import { doMove, ensureWorkshop, resolveMore, resolveProject, step, type Outbox } from "../src/lilguy.js";
+import { doMove, ensureWorkshop, resolveMore, resolveProject, step, type Outbox, luck } from "../src/lilguy.js";
 import { freshState } from "../src/state.js";
 import { estimate, makeProject } from "../src/workshop.js";
+
+luck.mishapChance = 0; // first tries always work here; mishaps have their own tests
 
 function outbox(log: string[] = []): Outbox {
   return {

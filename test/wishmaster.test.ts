@@ -1,13 +1,16 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { RuleBrain } from "../src/brain.js";
-import { build, doMove, resolveWish, step, type Outbox } from "../src/lilguy.js";
-import { findObject } from "../src/world.js";
+import { build, doMove, resolveWish, step, type Outbox, luck } from "../src/lilguy.js";
+import { findObject, objectsOf } from "../src/world.js";
+import { applyPick } from "../src/self.js";
 import { freshNeeds, mood, shape } from "../src/needs.js";
 import { backfillHighlights, freshState } from "../src/state.js";
 import { heardFromFrederik } from "../src/lilguy.js";
 import { snapshot } from "../src/publish.js";
 import { judge } from "../src/wishmaster.js";
+
+luck.mishapChance = 0; // first tries always work here; mishaps have their own tests
 
 test("he may wish for anything, even when his stats are fine; Frederik decides", () => {
   assert.equal(judge({ item: "a rocket", need: "curiosity", reason: "" }, freshNeeds(), []).kind, "ask_frederik");
@@ -53,6 +56,7 @@ test("mood decides the shape", () => {
 test("lonely lil guy copes on his own instead of asking Frederik to hang out", async () => {
   const s = freshState();
   s.needs.company = 0.1;
+  applyPick(s, await new RuleBrain().pickSelf(), objectsOf(s)); // he already knows who he is
   const asked: string[] = [], said: string[] = [];
   const out: Outbox = { say: async t => { said.push(t); }, inform: async () => {}, propose: async () => {}, askMore: async () => {}, ask: async w => { asked.push(w.item); } };
   await step(s, new RuleBrain(), out);

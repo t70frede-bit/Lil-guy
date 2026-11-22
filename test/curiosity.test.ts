@@ -1,12 +1,14 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { RuleBrain } from "../src/brain.js";
-import { doMove, step, type Outbox } from "../src/lilguy.js";
+import { doMove, step, type Outbox, luck } from "../src/lilguy.js";
 import { drift, freshNeeds } from "../src/needs.js";
 import { snapshot } from "../src/publish.js";
 import { freshState } from "../src/state.js";
 import { answerWonder, needsWonder, setWonder, today } from "../src/wonder.js";
 import { availableActions, findObject, hiddenSecret, noveltyReward, SECRETS } from "../src/world.js";
+
+luck.mishapChance = 0; // first tries always work here; mishaps have their own tests
 
 const out: Outbox = { async say() {}, async ask() {}, async inform() {}, async propose() {}, async askMore() {} };
 
