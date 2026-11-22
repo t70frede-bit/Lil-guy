@@ -29,7 +29,7 @@ const telegramOut: Outbox = {
   async say(text) { await send(`💻 Lil guy: ${text}`); remember(s, "lil guy", text); },
   async inform(text) { await send(`Wishmaster: ${text}`); },
   async ask(wish, why) {
-    const msg = `Wishmaster: Lil guy wishes for ${wish.item}.${wish.reason ? ` He says: "${wish.reason}"` : ""}\nWhy I am asking you: ${why}`;
+    const msg = `Wishmaster: Lil guy wishes for ${wish.item}.${wish.reason ? ` He says: "${wish.reason}"` : ""}${wish.looks ? `\nHow he pictures it: ${wish.looks}` : ""}\nWhy I am asking you: ${why}`;
     if (!tg || !s.ownerChatId) { console.log(`[ask] ${msg}`); return; }
     const sent = await tg.send(s.ownerChatId, msg, [{ text: "Approve", data: `yes:${wish.id}` }, { text: "Not now", data: `no:${wish.id}` }]);
     wish.messageId = sent.message_id;

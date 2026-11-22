@@ -25,6 +25,7 @@
     buttons.forEach(b => b.setAttribute('aria-expanded', String(b.dataset.panel === openPanel)));
     document.querySelectorAll('.panel').forEach(p => { p.hidden = p.id !== 'p-' + openPanel; });
     const hint = document.querySelector('.hint'); if (hint) hint.hidden = !!openPanel;
+    const snd = document.getElementById('sound'); if (snd) snd.hidden = !!openPanel;
   }
   buttons.forEach(b => b.addEventListener('click', () => show(b.dataset.panel)));
   document.querySelectorAll('.panel .close').forEach(b => b.addEventListener('click', () => show(openPanel)));
@@ -401,7 +402,9 @@
       return st => { const open = st === 'unwrapped'; lid.position.set(open ? 0.45 : 0, open ? 0.05 : 0.42, open ? 0.2 : 0); lid.rotation.z = open ? 0.5 : 0; star.visible = open; };
     },
     custom(g, def) {
-      const tent = mesh(new THREE.ConeGeometry(1.4, 2, 6), toon(0xe0a548), 0, 1, -0.3, g); void tent;
+      // a place he dreamed up himself: built in the colour he pictured it in
+      const c = colourFromWords(def.looks) || colourFromWords(def.colour);
+      const tent = mesh(new THREE.ConeGeometry(1.4, 2, 6), toon(c ? c.getHex() : 0xe0a548), 0, 1, -0.3, g); void tent;
       mesh(sph(0.12, 10, 8), toon(0xc2473d), 0, 2.05, -0.3, g);
       sign(def.name, g, 1.5, 1.0, 0.8);
       return () => {};
@@ -503,15 +506,109 @@
       if (plotMarkers[b.plot]) plotMarkers[b.plot].visible = false;
       const def = world.buildables.find(x => x.id === b.buildable);
       const items = def ? def.objects.map(o => ({ id: S.built.filter(x => x.buildable === def.id).indexOf(b) > 0 ? o.id + '-' + b.id : o.id, name: o.name, kind: def.kind, state: o.state, desc: o.desc, actions: o.actions, area: 'outside' }))
-        : [{ id: b.id, name: b.name, kind: 'custom', state: 'new', desc: world.custom.desc, actions: world.custom.actions, area: 'outside' }];
-      items.forEach(o => {
+        : [{ id: b.id, name: b.name, kind: 'custom', state: 'new', desc: world.custom.desc, actions: world.custom.actions, area: 'outside', looks: b.looks, colour: b.colour }];
+      items.forEach((o, i) => {
         if (things[o.id]) return;
         const side = plot[1] < 0 ? 1 : -1;  // face the path
         const t = addThing(o, plot[0], plot[1], [plot[0], plot[1] + side * 2.0], true);
         t.group.rotation.y = side > 0 ? 0 : Math.PI;
+        // every place built for him gets a little flag in his colour, so the town looks like his
+        if (i === 0) pennant(t.group, colourFromWords(b.looks) || colourFromWords(b.colour) || signatureColour());
         if (!reduce) t.popIn = 0;
       });
     });
+  }
+
+  // A small wonky flag on a stick, in his colour.
+  function pennant(parent, colour) {
+    const g = new THREE.Group(); g.position.set(-1.5, 0, 0.9); g.rotation.z = 0.06; parent.add(g);
+    mesh(cyl(0.035, 0.035, 1.6, 6), toon(0x8a5a3c), 0, 0.8, 0, g);
+    const shape = new THREE.Shape(); shape.moveTo(0, 0); shape.lineTo(0.62, -0.17); shape.lineTo(0, -0.36); shape.lineTo(0, 0);
+    const flag = mesh(new THREE.ShapeGeometry(shape), new THREE.MeshToonMaterial({ color: colour ? colour.getHex() : 0xffc857, gradientMap: grad, side: THREE.DoubleSide }), 0.03, 1.58, 0, g);
+    flag.userData.flag = true; g.userData.flag = flag;
+    flags.push(flag);
+    return g;
+  }
+  const flags = [];
+
+  // Little things at his size around the house: a cotton-reel stool, a thimble cup, a stack of buttons, a matchbox.
+  (function tinyThings() {
+    const g = new THREE.Group(); scene.add(g);
+    const spool = new THREE.Group(); spool.position.set(1.3, 0, 1.4); g.add(spool);
+    mesh(cyl(0.2, 0.2, 0.05, 18), toon(0xc79a6b), 0, 0.025, 0, spool); mesh(cyl(0.13, 0.13, 0.26, 18), toon(0xe8577a), 0, 0.18, 0, spool); mesh(cyl(0.2, 0.2, 0.05, 18), toon(0xc79a6b), 0, 0.335, 0, spool);
+    const thimble = mesh(cyl(0.09, 0.075, 0.16, 16), toon(0xc7c9d1), -1.75, 0.08, -2.0, g); void thimble;
+    [[0xc2473d, 0], [0x3b7dd8, 0.035], [0xe0a548, 0.07]].forEach(([c, y], i) => { const b = mesh(cyl(0.09 - i * 0.012, 0.09 - i * 0.012, 0.03, 14), toon(c), -0.1 + i * 0.01, 0.015 + y, 2.3, g); b.rotation.y = i; });
+    const mb = new THREE.Group(); mb.position.set(-2.05, 0, -2.45); mb.rotation.y = 0.4; g.add(mb);
+    mesh(box(0.36, 0.12, 0.22), toon(0xf6efe2), 0, 0.06, 0, mb); mesh(box(0.37, 0.05, 0.23), toon(0xc2473d), 0, 0.1, 0, mb);
+  })();
+
+  // His wall: the finished projects get pinned up behind his bed, and his theories go on little notes by the shelf.
+  const wall = new THREE.Group(); scene.add(wall);
+  let wallKey = '';
+  function syncWall() {
+    const done = (S.projects || []).filter(p => p.status === 'done').slice(-6);
+    const theories = ((S.self && S.self.theories) || []).slice(-8);
+    const key = done.map(p => p.title).join('|') + '#' + theories.length + '#' + (S.self && S.self.colour);
+    if (key === wallKey) return; wallKey = key;
+    while (wall.children.length) wall.remove(wall.children[0]);
+    const c = signatureColour(); const edge = c ? c.getHex() : 0xe0a548;
+    done.forEach((p, i) => {
+      const x = -4.1 + i * 0.62, y = i % 2 ? 1.55 : 2.05, z = HOUSE.z0 + 0.12;
+      const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.z = (i % 3 - 1) * 0.06; wall.add(g);
+      mesh(box(0.52, 0.42, 0.02), toon(edge), 0, 0, 0, g);
+      mesh(new THREE.PlaneGeometry(0.44, 0.34), basic(0xfffaf0), 0, 0, 0.012, g);
+      mesh(new THREE.PlaneGeometry(0.42, 0.11), new THREE.MeshBasicMaterial({ map: labelTexture(p.friend ? p.friend.name : p.title, 'rgba(0,0,0,0)', '#2a2433'), transparent: true }), 0, -0.1, 0.014, g);
+      // a little round doodle with a face, the way he draws everything
+      mesh(new THREE.CircleGeometry(0.07, 16), basic(edge), 0, 0.05, 0.014, g);
+      mesh(sph(0.025, 8, 6), toon(0xc2473d), 0, 0.2, 0.02, g); // the pin
+    });
+    theories.forEach((th, i) => {
+      const note = mesh(new THREE.PlaneGeometry(0.2, 0.2), basic(i % 2 ? 0xfde36a : 0xffd2a8), -0.15 + (i % 4) * 0.24, 2.55 - Math.floor(i / 4) * 0.25, HOUSE.z0 + 0.115, wall);
+      note.rotation.z = ((i * 37) % 7 - 3) * 0.04;
+    });
+  }
+
+  // A little life around him: birds hopping about outside by day, fireflies at night.
+  let isNight = false;
+  const birds = [0, 1].map(i => {
+    const g = new THREE.Group(); scene.add(g);
+    mesh(sph(0.13, 12, 10), toon(i ? 0x8a5a3c : 0x5b4636), 0, 0.14, 0, g);
+    mesh(sph(0.08, 10, 8), toon(i ? 0x8a5a3c : 0x5b4636), 0, 0.26, 0.1, g);
+    const beak = mesh(new THREE.ConeGeometry(0.03, 0.08, 6), toon(0xe0a548), 0, 0.26, 0.2, g); beak.rotation.x = Math.PI / 2;
+    mesh(sph(0.015, 6, 4), basic(0x2a2433), 0.04, 0.29, 0.16, g); mesh(sph(0.015, 6, 4), basic(0x2a2433), -0.04, 0.29, 0.16, g);
+    const b = { g, home: [7 + i * 1.6, 1.8 - i * 2.5], at: [7 + i * 1.6, 1.8 - i * 2.5], to: null, t: Math.random() * 3, fly: 0 };
+    g.position.set(b.at[0], 0, b.at[1]);
+    return b;
+  });
+  const fireflies = new THREE.Group(); scene.add(fireflies);
+  const flyMat = new THREE.MeshBasicMaterial({ color: 0xfff3a0, transparent: true, opacity: 0.9 });
+  for (let i = 0; i < 16; i++) { const f = mesh(sph(0.065, 8, 6), flyMat, 0, 0, 0, fireflies); f.userData.seed = [5 + Math.random() * 9, -3 + Math.random() * 7, 0.3 + Math.random() * 1.2, Math.random() * 6]; }
+  fireflies.visible = false;
+  function lifeTick(dt, t) {
+    fireflies.visible = isNight;
+    if (isNight) fireflies.children.forEach(f => { const [x, z, y, s] = f.userData.seed; f.position.set(x + Math.sin(t * 0.3 + s) * 0.6, y + Math.sin(t * 0.7 + s * 2) * 0.25, z + Math.cos(t * 0.25 + s) * 0.6); f.visible = reduce || Math.sin(t * 1.3 + s * 3) > -0.3; });
+    birds.forEach(b => {
+      b.g.visible = !isNight || b.fly > 0;
+      if (reduce) return;
+      // fly off when he comes close, then come back later
+      const near = Math.hypot(gx - b.at[0], gz - b.at[1]) < 1.6;
+      if (near && !b.fly) b.fly = 0.001;
+      if (b.fly) {
+        b.fly += dt;
+        const up = b.fly < 2.5 ? b.fly : 5 - b.fly;
+        b.g.position.set(b.at[0] + b.fly * 1.5, Math.max(0, up) * 2.2, b.at[1] - b.fly * 0.8);
+        if (b.fly >= 5) { b.fly = 0; b.at = [b.home[0] + (Math.random() - 0.5) * 2, b.home[1] + (Math.random() - 0.5) * 2]; b.g.position.set(b.at[0], 0, b.at[1]); }
+        return;
+      }
+      b.t -= dt;
+      if (b.t < 0) { b.t = 0.8 + Math.random() * 2.5; b.to = [b.home[0] + (Math.random() - 0.5) * 2.4, b.home[1] + (Math.random() - 0.5) * 2.4]; b.g.rotation.y = Math.atan2(b.to[0] - b.at[0], b.to[1] - b.at[1]); }
+      if (b.to) {
+        const dx = b.to[0] - b.at[0], dz = b.to[1] - b.at[1], d = Math.hypot(dx, dz);
+        if (d < 0.05) { b.to = null; b.g.position.y = 0; }
+        else { const s = Math.min(d, dt * 1.2); b.at = [b.at[0] + dx / d * s, b.at[1] + dz / d * s]; b.g.position.set(b.at[0], Math.abs(Math.sin(t * 12)) * 0.12, b.at[1]); }
+      } else b.g.children[1].position.y = 0.26 + (Math.sin(t * 3 + b.home[0]) > 0.9 ? -0.05 : 0); // pecks now and then
+    });
+    flags.forEach((f, i) => { if (!reduce) f.rotation.y = Math.sin(t * 2.2 + i) * 0.35; });
   }
 
   // ---------- Lil guy ----------
@@ -623,6 +720,11 @@
     sky: 0x6cc4ff, blue: 0x5fa8f5, ocean: 0x5fa3d8, sea: 0x5fb6c8, teal: 0x4fc1b5, turquoise: 0x4fd1c5, mint: 0x9be3c3, green: 0x7fcf72, leaf: 0x7fcf72, grass: 0x8fd46a, moss: 0x8fb85a, frog: 0x7fc45a, lime: 0xb6e05a,
     cocoa: 0xb08360, brown: 0xc79a6b, cream: 0xf6e3b4, sand: 0xe6cf9e, white: 0xf3efe8, cloud: 0xf3efe8, grey: 0xb9b4c2, gray: 0xb9b4c2, silver: 0xc7c9d1 };
   let sigWords = null, sigColour = null;
+  function colourFromWords(text) {
+    const words = String(text || '').toLowerCase();
+    for (const w of words.split(/[^a-z]+/)) if (COLOURS[w] !== undefined) return new THREE.Color(COLOURS[w]);
+    return null;
+  }
   function signatureColour() {
     const words = S.self && S.self.colour ? S.self.colour.toLowerCase() : '';
     if (words === sigWords) return sigColour;
@@ -772,7 +874,8 @@
       if (S.mood === 'proud' && prevMood !== 'proud' && R.kind !== 'doubletake') { react('wiggle', 1700); showSymbol('star', 3000); chirp('happy'); }
     }
     const hl = d.highlights || []; S.lastHighlight = hl.length ? hl[hl.length - 1].at : S.lastHighlight;
-    if (world) { syncBuilt(); syncGifts(); syncSecrets(); }
+    if (world) { syncBuilt(); syncGifts(); syncSecrets(); syncWall(); }
+    renderWho();
     Object.values(things).forEach(t => t.update(S.objects[t.def.id] || t.def.state));
 
     const place = S.sleeping ? 'bed' : d.place;
@@ -820,6 +923,20 @@
     if (right) { const r = document.createElement('span'); r.textContent = right; el.append(r); }
     return el;
   }
+  // Who he is, in the Stats panel: what he picked about himself, his goal, his theories.
+  function renderWho() {
+    const me = S.self, box = $('who'); if (!box) return;
+    box.hidden = !me; if (!me) return;
+    $('wColour').textContent = cap(me.colour || '');
+    $('wCatch').textContent = me.catchphrase ? '\u201c' + me.catchphrase + '\u201d' : '';
+    $('wGoal').textContent = me.goal ? me.goal : 'Still thinking about it' + (me.thinkingNights ? ' (' + me.thinkingNights + (me.thinkingNights === 1 ? ' night' : ' nights') + ' so far)' : '');
+    $('wStyle').textContent = me.style || '';
+    const ul = $('wTheories'); ul.textContent = '';
+    const th = me.theories || [];
+    if (!th.length) { const e = document.createElement('li'); e.className = 'empty'; e.textContent = 'No theories yet.'; ul.append(e); }
+    th.slice().reverse().forEach(x => { const e = document.createElement('li'); e.style.display = 'block'; const s = document.createElement('span'); s.textContent = cap(x.about) + ': ' + x.belief + (x.was ? ' (he used to think: ' + x.was + ')' : ''); e.append(s); ul.append(e); });
+  }
+
   function renderLists() {
     const bl = $('builtList'); bl.textContent = '';
     if (!S.built.length) bl.append(li('Nothing yet. The land outside is empty.'));
@@ -942,6 +1059,7 @@
   function setSky() {
     const h = new Date().getHours() + new Date().getMinutes() / 60;
     const day = h >= 7 && h < 18, dusk = (h >= 18 && h < 21) || (h >= 5 && h < 7);
+    isNight = !day && !dusk;
     const sky = day ? 0xbfe3f5 : dusk ? 0xf0b48a : 0x1c2142;
     scene.background.set(sky); scene.fog.color.set(sky);
     hemi.intensity = day ? 0.62 : dusk ? 0.52 : 0.34; sun.intensity = day ? 0.6 : dusk ? 0.45 : 0.18;
@@ -960,6 +1078,7 @@
     const ts = Math.max(0, 1 - tc - tk), sum = tc + tk + ts || 1;
     W.c = lerp(W.c, tc / sum, k); W.k = lerp(W.k, tk / sum, k); W.s = lerp(W.s, ts / sum, k); W.d = lerp(W.d, td, k);
     deform();
+    lifeTick(dt, t);
     if (!reduce) Object.values(secretBits).forEach((b, i) => { if (b.glint.visible) { b.glint.rotation.y += dt * 2; b.glint.position.y = b.base + Math.sin(t * 2.5 + i) * 0.06; } });
     const moodKey = S.sleeping ? 'sleepy' : (palette[S.mood] ? S.mood : 'content');
     const sig = signatureColour();

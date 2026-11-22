@@ -210,3 +210,28 @@ export function publicSelf(s: State) {
     lines: me.lines.slice(-6),
   };
 }
+
+/**
+ * A short page about him, built by code (no AI), for everything he makes in his workshop.
+ * It is what makes his stories, games and friends feel like his and nobody else's.
+ */
+export function personalityBrief(s: State, mood?: string): string {
+  const me = s.self;
+  if (!me) return "";
+  const found = Object.entries(s.secrets ?? {}).filter(([, v]) => v === "found").length;
+  const names = Object.values(me.names).slice(0, 6);
+  return [
+    `About the maker (you):`,
+    `- Favourite colour: ${me.colour}. Favourite thing: ${me.favourite}. Catchphrase: "${me.catchphrase}".`,
+    `- Your maker's style: ${me.style}.`,
+    me.goal ? `- Your goal in life: ${me.goal}.` : `- You are still working out your goal in life.`,
+    me.fear ? `- A bit scared of ${me.fear}.` : "",
+    names.length ? `- Your names for your things: ${names.join(", ")}.` : "",
+    me.theories.length ? `- Your theories: ${me.theories.slice(-3).map(t => `${t.about}: ${t.belief}`).join("; ")}.` : "",
+    me.treasured.length ? `- Moments you treasure: ${me.treasured.slice(-3).map(m => m.text).join("; ")}.` : "",
+    me.lines.length ? `- What you know about yourself: ${me.lines.slice(-3).join(" ")}` : "",
+    found ? `- You have found ${found} secret${found > 1 ? "s" : ""} in your world.` : "",
+    s.items.length ? `- Things you own: ${s.items.slice(-6).join(", ")}.` : "",
+    mood ? `- How you feel right now: ${mood}.` : "",
+  ].filter(Boolean).join("\n");
+}
