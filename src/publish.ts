@@ -106,6 +106,9 @@ export async function publishAssets(url: string | undefined, token: string | und
     });
     if (res.status === 404) { console.log("The world page does not take page files yet; will try again in an hour."); return; }
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    // An older page that does not keep icons yet: the page files are in, try again in an hour for the icons.
+    const kept = ((await res.json().catch(() => ({}))) as { files?: string[] }).files ?? [];
+    if (Object.keys(icons).length && !kept.includes("icons")) { console.log("World page files updated; it does not take icons yet, will try again in an hour."); return; }
     assetsSent = true;
     console.log("World page files updated.");
   } catch (e) {
