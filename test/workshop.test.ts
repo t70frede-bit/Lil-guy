@@ -145,3 +145,12 @@ test("a project is understood even when he puts the name and idea in other field
   await doMove(s2, { type: "propose_project", title: "Pip", idea: "A friend.", kind: "friend", need: "company", steps: ["Looks", "Name"] }, outbox(), new RuleBrain());
   assert.equal(s2.projects[0]?.title, "Pip");
 });
+
+test("a project still reaches Frederik after a busy day of messages", async () => {
+  const s = freshState(); ensureWorkshop(s); s.needs.company = 0.1;
+  s.sentToday = { day: new Date().toISOString().slice(0, 10), count: 99 };
+  const log: string[] = [];
+  await doMove(s, friendMove, outbox(log), new RuleBrain());
+  assert.equal(s.projects.length, 1);
+  assert.ok(log.some(l => l.startsWith("propose:")));
+});

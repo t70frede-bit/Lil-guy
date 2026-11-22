@@ -184,7 +184,8 @@ async function wish(s: State, move: Move & { reason?: string }, out: Outbox) {
     if (!s.items.includes(verdict.thing.name)) s.items.push(verdict.thing.name);
     note(s, `Wished for ${item}. The wishmaster gave him ${verdict.thing.name}: ${verdict.why}`);
     highlight(s, "gift", `Wished for ${item} and the wishmaster gave him ${verdict.thing.name}.`);
-    if (canMessage(s)) { countMessage(s); await out.inform(`Lil guy needed something and got ${verdict.thing.name} for free (${verdict.why})`); }
+    // Free gifts are just news, so they do not use up his own messages for the day.
+    if (canMessage(s)) { await out.inform(`Lil guy needed something and got ${verdict.thing.name} for free (${verdict.why})`); }
     return;
   }
   if (!canMessage(s)) { note(s, `Wanted to ask for ${item}, but the wishmaster is saving it for tomorrow.`); return; }
@@ -272,8 +273,8 @@ async function propose(s: State, move: Move & { reason?: string }, brain: Brain 
     note(s, `Planned a project called "${p.title}". The wishmaster said no: projects have to come from a real need, and ${p.need || "no need"} is fine right now.`);
     return;
   }
-  if (!canMessage(s)) { note(s, `Planned "${p.title}", but the wishmaster is saving it for tomorrow.`); return; }
-  countMessage(s);
+  // Project proposals do not use up his daily messages: they are already limited to one at a time,
+  // with a pause after a "not now", and they are the main thing Frederik wants to hear about.
   s.projects.push(p);
   s.objects.planboard = "a plan is pinned up";
   note(s, `Planned a project: "${p.title}". The wishmaster asked Frederik (about ${p.estimate.tokens} tokens, ${kr(p.estimate.dkk)}).`);
@@ -309,7 +310,7 @@ async function work(s: State, brain: Brain | undefined, out: Outbox) {
     s.needs = applyEffect(s.needs, { fulfilled: 0.3 });
     note(s, `Finished his project "${p.title}"!`);
     highlight(s, "project", p.friend ? `Finished designing a new friend: ${p.friend.name}!` : `Finished his project "${p.title}"!`);
-    if (canMessage(s)) { countMessage(s); await out.inform(finishedMessage(p, brain.model)); }
+    await out.inform(finishedMessage(p, brain.model)); // always: a finished project is what Frederik paid for
   }
 }
 

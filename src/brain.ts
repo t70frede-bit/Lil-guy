@@ -96,6 +96,12 @@ function curiosityText(s: State): string {
   ].filter(Boolean).join("\n");
 }
 
+/** What he said to Frederik lately, so plans he talked about turn into real moves. */
+function toldFrederik(s: State): string {
+  const said = s.chat.filter(c => c.from === "lil guy").slice(-4).map(c => `- "${c.text.slice(0, 200)}"`);
+  return said.length ? `Things you said to Frederik lately (if you said you would make or do something, go and do it now, for example with propose_project):\n${said.join("\n")}` : "";
+}
+
 function situation(s: State, model: string): string {
   const m = mood(s.needs, s.sleeping);
   const recent = s.diary.slice(-12).map(d => `- ${d.text}`).join("\n") || "- nothing yet";
@@ -111,6 +117,7 @@ function situation(s: State, model: string): string {
     curiosityText(s),
     workshopText(s, model),
     `Wishes still waiting for Frederik: ${s.pending.map(p => p.item).join(", ") || "none"}.`,
+    toldFrederik(s),
     `What happened lately:\n${recent}`,
   ].filter(Boolean).join("\n");
 }
@@ -125,6 +132,7 @@ const RULES = `Pick 1 to 3 moves from the menu. Rules:
 - When you feel lonely, look after yourself in your world: hug the toy ball, talk to the stone, watch the birds, or (if you have a workshop) design a friend there.
 - Never ask Frederik to decide things for you, like what to make, what a friend should be or what its name should be. Decide yourself, put it in your project, and tell him what you picked. The only thing Frederik decides is yes or no on the cost, through the wishmaster.
 - A project is a big thing. Only propose one when a need explains it (often fulfilled or curiosity, or company for a friend), and say which need. Keep the plan small.
+- When you tell Frederik you want to make something, like a friend, actually do it: plan it with propose_project. Talking about a project does not start it.
 - When you have an approved project, working on it (work_on_project) is the best way to spend your time. Do it most turns until it is done.
 - When energy is very low, sleep.`;
 
