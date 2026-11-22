@@ -26,7 +26,7 @@ export const FREE_THINGS: FreeThing[] = [
 export interface Wish { item: string; need: string; reason: string }
 
 export type Verdict =
-  | { kind: "declined"; why: string }
+  | { kind: "declined"; why: string; gentle?: boolean }
   | { kind: "granted"; thing: FreeThing; why: string }
   | { kind: "ask_frederik"; why: string };
 
@@ -34,8 +34,18 @@ const NEED_NAMES: NeedName[] = ["energy", "curiosity", "company", "feisty", "ful
 
 function normalise(s: string) { return s.toLowerCase().replace(/^(a|an|some|the)\s+/, "").trim(); }
 
+/** Wishes for Frederik himself (to visit, hang out, say hi). Frederik asked not to make that a thing. */
+export function wantsFrederik(item: string): boolean {
+  const t = item.toLowerCase();
+  if (/\b(hut|house|place|corner|spot|room)\b/.test(t)) return false; // a hangout hut is a building, not Frederik
+  return /\b(frederik|you)\b/.test(t) || /\b(say hi|hang ?out|visit|keep me company|play with me|talk to me|spend time|a hug)\b/.test(t);
+}
+
 export function judge(wish: Wish, needs: Needs, owned: string[]): Verdict {
-  // He may wish for anything; the need is only used to explain the wish and pick a free thing.
+  // He may wish for anything except Frederik himself; the need only explains the wish and picks a free thing.
+  if (wantsFrederik(wish.item)) {
+    return { kind: "declined", gentle: true, why: "Frederik is not something to wish for. When you feel lonely, find company in your world (the ball, the stone, the birds) or design a friend in your workshop." };
+  }
   const need = NEED_NAMES.find(n => wish.need.toLowerCase().includes(n));
   const inNeed = urgent(needs);
   const wanted = normalise(wish.item);
