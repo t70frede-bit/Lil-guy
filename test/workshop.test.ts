@@ -29,13 +29,9 @@ test("estimates grow with steps and are priced in DKK", () => {
   assert.equal(typeof makeProject({ title: "x", idea: "y", steps: ["one"] }, "claude-haiku-5-5"), "string");
 });
 
-test("a project needs a real need and Frederik's yes before any work", async () => {
+test("a project needs Frederik's yes before any work", async () => {
   const s = freshState(); ensureWorkshop(s);
   const log: string[] = [];
-  await doMove(s, friendMove, outbox(log), new RuleBrain());
-  assert.equal(s.projects.length, 0, "company is fine, so it is declined");
-
-  s.needs.company = 0.1;
   await doMove(s, friendMove, outbox(log), new RuleBrain());
   assert.equal(s.projects.length, 1);
   assert.equal(s.projects[0].budget, 0);
@@ -153,4 +149,13 @@ test("a project still reaches Frederik after a busy day of messages", async () =
   await doMove(s, friendMove, outbox(log), new RuleBrain());
   assert.equal(s.projects.length, 1);
   assert.ok(log.some(l => l.startsWith("propose:")));
+});
+
+test("a friend plan reaches Frederik even when he is not lonely and named no need", async () => {
+  const s = freshState(); ensureWorkshop(s); s.needs.company = 0.5;
+  const log: string[] = [];
+  await doMove(s, { type: "propose_project", title: "Design my bird friend Pip", idea: "A little bird.", kind: "friend", steps: ["Looks", "Name"] }, outbox(log), new RuleBrain());
+  assert.equal(s.projects.length, 1);
+  assert.equal(s.projects[0].need, "company");
+  assert.ok(log.some(l => l.startsWith("propose:Design my bird friend Pip")));
 });

@@ -267,19 +267,18 @@ async function propose(s: State, move: Move & { reason?: string }, brain: Brain 
   const p = makeProject({ title: move.title ?? move.item ?? move.target, kind: move.kind, idea: move.idea ?? move.text ?? move.reason, need: move.need, steps: move.steps }, brain?.model ?? "");
   if (typeof p === "string") { note(s, `Tried to plan a project, but the wishmaster sent it back: ${p} (A plan needs a title, an idea, 2 to 8 steps and a need.)`); return; }
   goToWorkbench(s);
+  // Frederik decides on every project himself (he sees the cost), so the wishmaster no longer turns
+  // plans down for not coming from a pressing need. A friend is for company if he did not say.
+  if (!p.need && p.kind === "friend") p.need = "company";
   const pressing = urgent(s.needs);
-  if (!p.need || !pressing[p.need as keyof typeof pressing]) {
-    s.needs = applyEffect(s.needs, { feisty: 0.08 });
-    note(s, `Planned a project called "${p.title}". The wishmaster said no: projects have to come from a real need, and ${p.need || "no need"} is fine right now.`);
-    return;
-  }
   // Project proposals do not use up his daily messages: they are already limited to one at a time,
   // with a pause after a "not now", and they are the main thing Frederik wants to hear about.
   s.projects.push(p);
   s.objects.planboard = "a plan is pinned up";
   note(s, `Planned a project: "${p.title}". The wishmaster asked Frederik (about ${p.estimate.tokens} tokens, ${kr(p.estimate.dkk)}).`);
   highlight(s, "project", `Planned a project: "${p.title}". Waiting for Frederik to say yes.`);
-  await out.propose(p, `${p.need} is ${pressing[p.need as keyof typeof pressing]}.`);
+  const feeling = pressing[p.need as keyof typeof pressing];
+  await out.propose(p, feeling ? `${p.need} is ${feeling}.` : p.need ? `It is his own idea, for his ${p.need}.` : "It is his own idea.");
 }
 
 async function work(s: State, brain: Brain | undefined, out: Outbox) {
