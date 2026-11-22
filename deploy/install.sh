@@ -19,6 +19,8 @@ STEP="starting"
 tg_token() { [ -n "${TELEGRAM_BOT_TOKEN:-}" ] && { echo "$TELEGRAM_BOT_TOKEN"; return; }; [ -f "$DIR/.env" ] && grep -E '^TELEGRAM_BOT_TOKEN=' "$DIR/.env" | cut -d= -f2-; }
 report() {
   echo "[$(date -u +%H:%M:%S)] $1"
+  # Automatic updates only report when they finish or fail, not every step.
+  if [ -n "${LILGUY_AUTO:-}" ]; then case "$1" in Done*|FAILED*) ;; *) return 0 ;; esac; fi
   local t; t="$(tg_token || true)"; [ -z "$t" ] && return 0
   # Send to whoever has written to the bot (Frederik's /start). Does not consume the bot's messages.
   local ids; ids="$(curl -s "https://api.telegram.org/bot$t/getUpdates" | grep -oE '"chat":\{"id":-?[0-9]+' | grep -oE -- '-?[0-9]+$' | sort -u || true)"
@@ -103,12 +105,15 @@ chown -R lilguy:lilguy "$DIR"
 
 STEP="starting lil guy"; report "Step 5/5: $STEP"
 sed "s|/usr/bin/node|$(command -v node)|" deploy/lilguy.service > /etc/systemd/system/lilguy.service
+# Automatic updates: check GitHub every 5 minutes and install anything new on main.
+cp deploy/lilguy-update.service deploy/lilguy-update.timer /etc/systemd/system/
 systemctl daemon-reload
+systemctl enable --now lilguy-update.timer
 systemctl enable lilguy
 systemctl restart lilguy
 sleep 5
 if systemctl is-active --quiet lilguy; then
-  report "Done. Lil guy is running. Send /start to the bot if you have not yet."
+  report "Done. Lil guy is running$( [ -n "${LILGUY_AUTO:-}" ] && echo " the newest code ($(git rev-parse --short HEAD))" ). Send /start to the bot if you have not yet."
 else
   STEP="lil guy did not stay running"; on_error; exit 1
 fi
