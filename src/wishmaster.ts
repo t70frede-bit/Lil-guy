@@ -4,6 +4,7 @@
 // Rule 2: anything that needs Frederik (company, money, real objects, decisions) is sent to him.
 
 import { clamp, urgent, type NeedName, type Needs } from "./needs.js";
+import { isInternetWish } from "./computer.js";
 
 export interface FreeThing {
   name: string;
@@ -56,6 +57,9 @@ export function judge(wish: Wish, needs: Needs, owned: string[]): Verdict {
       return { kind: "declined", why: `He already has ${free.name}. Something he has already seen will not help his curiosity.` };
     }
     return { kind: "granted", thing: free, why: `${free.name} is free${need && inNeed[need] ? `, and his ${need} is ${inNeed[need]}` : ""}.` };
+  }
+  if (isInternetWish(wish.item)) {
+    return { kind: "ask_frederik", why: "He wants to look around on the internet from his little computer. That is not built yet, so saying yes does not switch anything on. It tells Claude he really wants it, and then it gets planned with a cost in kroner for you to approve first." };
   }
   const feeling = need ? ` He says it is for ${need} (${Math.round(needs[need] * 100)}%${inNeed[need] ? `, ${inNeed[need]}` : ""}).` : "";
   return { kind: "ask_frederik", why: `This needs you.${feeling}` };

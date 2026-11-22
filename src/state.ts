@@ -5,6 +5,7 @@ import { dirname } from "node:path";
 import { freshNeeds, type Needs } from "./needs.js";
 import type { Built, SecretState } from "./world.js";
 import type { Project } from "./workshop.js";
+import type { Mailbox } from "./computer.js";
 import type { Self } from "./self.js";
 import { mood, type Mood } from "./needs.js";
 
@@ -37,11 +38,15 @@ export interface State {
   built: Built[];
   /** The last thing he did with an object, for the web page's animation. */
   last?: { object: string; verb: string; line: string; at: string };
+  /** What waits on his little computer: things to tell Frederik, and Frederik's unread messages. */
+  computer?: Mailbox;
   sleeping: boolean;
   paused: boolean;
   items: string[];
   /** How many times he has done each thing, for the novelty reward. */
   tried: Record<string, number>;
+  /** When he last did each thing, so a repeat's reward can recover over time. */
+  lastTried: Record<string, string>;
   diary: DiaryEntry[];
   /** The moments worth remembering, newest last. */
   highlights: Highlight[];
@@ -83,7 +88,7 @@ export function moodOf(s: State, now = Date.now()): Mood {
 
 export function freshState(): State {
   return {
-    needs: freshNeeds(), place: "bed", objects: {}, built: [], sleeping: false, paused: false, items: [], tried: {}, secrets: {},
+    needs: freshNeeds(), place: "bed", objects: {}, built: [], sleeping: false, paused: false, items: [], tried: {}, lastTried: {}, secrets: {},
     diary: [], highlights: [], pending: [], projects: [], telegramOffset: 0, sentToday: { day: "", count: 0 }, chat: [], ticks: 0,
   };
 }

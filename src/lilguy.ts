@@ -44,10 +44,15 @@ function reward(s: State, key: string, care = false) {
     s.needs = applyEffect(s.needs, times === 0 ? { fulfilled: noveltyReward(0), curiosity: -noveltyReward(0) } : { fulfilled: 0.04, company: 0.02 });
     return times === 0;
   }
-  const r = noveltyReward(times);
+  s.lastTried ??= {};
+  const last = s.lastTried[key];
+  // Things he did before this was tracked count as done long ago.
+  const hours = last ? (Date.now() - Date.parse(last)) / 3600_000 : 1e6;
+  const r = noveltyReward(times, hours);
   s.tried[key] = times + 1;
-  // New things fill him up and satisfy curiosity; doing the same thing again makes him restless.
-  s.needs = applyEffect(s.needs, { fulfilled: r, curiosity: -r + repeatBoredom(times), feisty: times === 0 ? -0.05 : 0 });
+  s.lastTried[key] = new Date().toISOString();
+  // New things fill him up and satisfy curiosity; doing the same thing again soon makes him restless.
+  s.needs = applyEffect(s.needs, { fulfilled: r, curiosity: -r + repeatBoredom(times, hours), feisty: times === 0 ? -0.05 : 0 });
   return times === 0;
 }
 
