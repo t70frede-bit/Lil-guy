@@ -5,7 +5,24 @@
 import WORLD from "../world/world.json" with { type: "json" };
 import { clamp, type Needs } from "./needs.js";
 
-export interface Action { verb: string; from?: string; to?: string; effect?: Partial<Needs>; line: string }
+export interface Action {
+  verb: string; from?: string; to?: string; effect?: Partial<Needs>; line: string;
+  /** Set when this action is a secret he found, with the secret's id. */
+  secret?: string;
+  /** Different things that can happen each time (cloud shapes, shadow animals). */
+  lines?: string[];
+}
+/**
+ * A secret hidden in his world. Looking closer at its thing makes him notice it (the hint);
+ * after that he can do its verb, and finding it the first time feels wonderful.
+ * Some secrets only show up once another one is found (needs), or when a thing is in a state (when).
+ */
+export interface Secret {
+  id: string; object: string; hint: string; verb: string; line: string; lines?: string[];
+  needs?: string; when?: Record<string, string>; effect?: Partial<Needs>;
+}
+export type SecretState = "noticed" | "found";
+type WithSecrets = { objects: Record<string, string>; secrets?: Record<string, SecretState> };
 export interface WorldObject {
   id: string; name: string; area: string; kind: string; state: string; desc: string; actions: Action[];
   /** Set when the object belongs to something that was built after a wish. */
@@ -26,6 +43,9 @@ export const PLOTS = WORLD.plots.length;
 /** What the wishmaster's free things (and Frederik's presents) become inside his house. */
 interface GiftDef extends Omit<WorldObject, "area" | "built"> { item: string }
 export const GIFTS = WORLD.gifts as unknown as GiftDef[];
+export const SECRETS = ((WORLD as { secrets?: Secret[] }).secrets ?? []) as Secret[];
+/** How finding a secret for the first time feels. */
+export const SECRET_JOY: Partial<Needs> = { fulfilled: 0.3, curiosity: -0.35, feisty: -0.1 };
 const CUSTOM_GIFT = WORLD.customGift as unknown as { kind: string; desc: string; state: string; actions: Action[] };
 
 /** The id a present gets in his house, matching the web page. */
@@ -66,12 +86,27 @@ export function stateOf(s: { objects: Record<string, string> }, o: WorldObject):
   return s.objects[o.id] ?? o.state;
 }
 
-export function availableActions(s: { objects: Record<string, string> }, o: WorldObject): Action[] {
+const conditionsMet = (s: WithSecrets, x: Secret) =>
+  (!x.needs || s.secrets?.[x.needs] === "found") && Object.entries(x.when ?? {}).every(([id, st]) => (s.objects[id] ?? BASE.find(b => b.id === id)?.state) === st);
+
+export function availableActions(s: WithSecrets, o: WorldObject): Action[] {
   const st = stateOf(s, o);
-  return o.actions.filter(a => !a.from || a.from === st);
+  const secret = SECRETS.filter(x => x.object === o.id && s.secrets?.[x.id] && conditionsMet(s, x))
+    .map(x => ({ verb: x.verb, line: x.line, effect: x.effect, secret: x.id, lines: x.lines }));
+  return [...o.actions.filter(a => !a.from || a.from === st), ...secret];
 }
 
-export function findAction(s: { objects: Record<string, string> }, o: WorldObject, text: string | undefined): Action | undefined {
+/** The next secret on this thing he could notice by looking closer, if any. */
+export function hiddenSecret(s: WithSecrets, objectId: string): Secret | undefined {
+  return SECRETS.find(x => x.object === objectId && !s.secrets?.[x.id] && conditionsMet(s, x));
+}
+
+/** Secrets he noticed but has not tried yet. */
+export function noticedSecrets(s: WithSecrets): Secret[] {
+  return SECRETS.filter(x => s.secrets?.[x.id] === "noticed");
+}
+
+export function findAction(s: WithSecrets, o: WorldObject, text: string | undefined): Action | undefined {
   const acts = availableActions(s, o);
   if (!text) return acts.length === 1 ? acts[0] : undefined;
   const t = words(text);
@@ -134,9 +169,14 @@ export function moveEffect(type: MoveType, n: Needs): Needs {
 }
 
 /**
- * Novelty reward: the first time he does something, it feels great.
- * Each repeat of the same thing gives less, so exploring and trying beats repeating.
+ * Novelty reward: the first time he does something, it feels wonderful.
+ * Repeats wear off fast (0.45, then 0.09, 0.03, 0.01...), so exploring and trying beats repeating.
  */
 export function noveltyReward(timesDone: number): number {
-  return 0.25 / (1 + timesDone * 1.5);
+  return timesDone <= 0 ? 0.45 : 0.09 / (timesDone * timesDone);
+}
+
+/** Doing the same thing again and again makes him restless: extra curiosity for each repeat. */
+export function repeatBoredom(timesDone: number): number {
+  return timesDone <= 0 ? 0 : Math.min(0.1, 0.03 * timesDone);
 }

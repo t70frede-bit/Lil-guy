@@ -7,7 +7,8 @@ import * as z from "zod/v4";
 import { CHARACTER } from "./character.js";
 import { describe, mood, shape, urgent } from "./needs.js";
 import type { State } from "./state.js";
-import { AREAS, availableActions, BUILDABLES, findObject, MOVE_TYPES, objectsOf, stateOf } from "./world.js";
+import { AREAS, availableActions, BUILDABLES, findObject, hiddenSecret, MOVE_TYPES, noticedSecrets, objectsOf, SECRETS, stateOf } from "./world.js";
+import { needsWonder, openWonder } from "./wonder.js";
 import { FREE_THINGS } from "./wishmaster.js";
 import { activeProject, recentlyToldNo, estimate, kr, MAX_OUTPUT_PER_STEP, PROJECT_KINDS, priceOf, USD_TO_DKK, waitingProject, type FriendDesign, type Project } from "./workshop.js";
 
@@ -20,12 +21,14 @@ const Decision = z.object({
     item: z.string().optional().describe("For wish: the thing he wants."),
     title: z.string().optional().describe("For propose_project: the project's name, e.g. \"Design my friend Pip\"."),
     idea: z.string().optional().describe("For propose_project: the idea in two or three sentences."),
-    need: z.string().optional().describe("For wish and propose_project: which need it is for (energy, curiosity, company, feisty, fulfilled)."),
+    need: z.string().optional().describe("For wish (if one fits) and propose_project: which need it is for (energy, curiosity, company, feisty, fulfilled)."),
     reason: z.string().optional().describe("For wish: why you need it, in your own words."),
     text: z.string().optional().describe("For message: what he says to Frederik."),
     kind: z.enum(PROJECT_KINDS).optional().describe("For propose_project: what sort of project."),
     steps: z.array(z.string()).optional().describe("For propose_project: the plan, 2 to 8 short steps. Each step is one work session."),
   })).min(1).max(3),
+  wonder: z.string().optional().describe("Only when it is a new day and you are asked to: your I wonder for today, one thing you want to find out or try. Start with 'I wonder'."),
+  wonder_answer: z.string().optional().describe("Only when you have really found out what you wondered about today: what you found out, in one sentence in your own voice."),
 });
 export type Decision = z.infer<typeof Decision>;
 
@@ -80,6 +83,19 @@ function surroundings(s: State): string {
   ].join("\n");
 }
 
+function curiosityText(s: State): string {
+  const found = SECRETS.filter(x => s.secrets?.[x.id] === "found").length;
+  const noticed = noticedSecrets(s);
+  const w = openWonder(s);
+  return [
+    `Your world is full of little secrets. Looking closer at a thing (look_closer with its name as target) is how you notice them. You have found ${found} so far${found < SECRETS.length ? ", and there are more hiding" : ""}.`,
+    noticed.length ? `Things you noticed but have not checked yet: ${noticed.map(x => `${x.hint} (at the ${findObject(s, x.object)?.name ?? x.object}: you can "${x.verb}")`).join(" ")}` : "",
+    needsWonder(s) ? `It is a new day! Pick your "I wonder" for today: one thing you want to find out or try today. Put it in the wonder field, starting with "I wonder". Pick something you can go and do.` : "",
+    w ? `Today you wonder: "${w.text}" Go and find out! When you really have, write what you found out in wonder_answer.` : "",
+    s.wonder?.answer && !w ? `You already found out what you wondered about today: ${s.wonder.answer}` : "",
+  ].filter(Boolean).join("\n");
+}
+
 function situation(s: State, model: string): string {
   const m = mood(s.needs, s.sleeping);
   const recent = s.diary.slice(-12).map(d => `- ${d.text}`).join("\n") || "- nothing yet";
@@ -90,8 +106,9 @@ function situation(s: State, model: string): string {
     `Your mood is ${m}, so your body is a ${shape(m)}.`,
     `Things you own: ${s.items.join(", ") || "nothing yet"}.`,
     `Things you have already done (doing new things feels much better than repeating): ${tried}.`,
-    `Free things the wishmaster can give if you really need them: ${FREE_THINGS.map(t => `${t.name} (for ${t.meets})`).join(", ")}.`,
-    `Outside is empty land. If a need keeps coming back, you can wish for a place or thing to be built out there, and the wishmaster asks Frederik. Ideas other little creatures have had: ${BUILDABLES.filter(b => !s.built.some(x => x.buildable === b.id)).map(b => `${b.name} (for ${b.meets})`).join(", ")}. You can also dream up your own.`,
+    `Free things the wishmaster can give you: ${FREE_THINGS.map(t => `${t.name} (for ${t.meets})`).join(", ")}.`,
+    `Outside is empty land. You can wish for a place or thing to be built out there, and the wishmaster asks Frederik. Ideas other little creatures have had: ${BUILDABLES.filter(b => !s.built.some(x => x.buildable === b.id)).map(b => `${b.name} (for ${b.meets})`).join(", ")}. You can also dream up your own.`,
+    curiosityText(s),
     workshopText(s, model),
     `Wishes still waiting for Frederik: ${s.pending.map(p => p.item).join(", ") || "none"}.`,
     `What happened lately:\n${recent}`,
@@ -99,9 +116,10 @@ function situation(s: State, model: string): string {
 }
 
 const RULES = `Pick 1 to 3 moves from the menu. Rules:
-- Only wish for something when one of your pressing needs explains it, and say which need. Wishes without a need get declined.
-- Prefer using things in ways you have not tried before, or going somewhere new. To use a thing, pick "use" with its name as target and one of its listed actions.
-- Wishing for a place to be built is a big wish. Only do it when a need keeps coming back and nothing you have fixes it, and say which need.
+- You may wish for anything you really want. Say which need it is for if one fits, and why you want it.
+- Doing something for the very first time feels wonderful. Doing the same thing again feels like almost nothing and makes you restless. So always look for something new: a place you have not been, an action you have not tried, a thing you have not looked closely at. To use a thing, pick "use" with its name as target and one of its listed actions.
+- Look closer at things. Many of them hide secrets, and finding one is the best feeling there is.
+- Wishing for a place to be built is a big wish. Say why you want it.
 - Only send Frederik a message to show him something you made or found, or to ask a real question about the world. Keep it to one or two short sentences. Do not message him just to say hi, to ask him to hang out or play, or because you feel lonely.
 - Frederik is not someone to wish for. Never wish for Frederik to visit, say hi, hang out or keep you company.
 - When you feel lonely, look after yourself in your world: hug the toy ball, talk to the stone, watch the birds, or (if you have a workshop) design a friend there.
@@ -178,6 +196,17 @@ export class RuleBrain implements Brain {
       : { type: "propose_project", kind: "invention", need, title: "A machine that makes bubbles", idea: "A machine that blows bubbles when you press a button.", steps: ["Draw the machine", "Work out the button"] };
   }
   async decide(s: State): Promise<Decision> {
+    const d = await this.pick(s);
+    if (needsWonder(s)) {
+      const o = objectsOf(s).find(x => hiddenSecret(s, x.id)) ?? objectsOf(s).find(x => !s.tried[`go:${x.id}`]);
+      d.wonder = o ? `I wonder what is special about the ${o.name}.` : "I wonder what I will find today.";
+    } else {
+      const w = openWonder(s);
+      if (w && Object.keys(s.tried).length > w.triedAtStart) d.wonder_answer = "I found something I had never seen before!";
+    }
+    return d;
+  }
+  private async pick(s: State): Promise<Decision> {
     const n = s.needs, u = urgent(n);
     if (n.energy < 0.15) return { thought: "So... sleepy...", moves: [{ type: "sleep" }] };
     if (activeProject(s.projects)) return { thought: "Back to my project!", moves: [{ type: "work_on_project" }] };
@@ -190,6 +219,11 @@ export class RuleBrain implements Brain {
     if (u.feisty) return { thought: "Hmph.", moves: [{ type: "wish", item: "a cushion to punch", need: "feisty", reason: "I am pointy and cross." }] };
     if (u.curiosity) {
       const all = objectsOf(s);
+      const noticed = noticedSecrets(s).find(x => all.some(o => o.id === x.object) && availableActions(s, all.find(o => o.id === x.object)!).some(a => a.secret === x.id));
+      if (noticed) return { thought: "I have to know what that is!", moves: [{ type: "use", target: noticed.object, action: noticed.verb }] };
+      const area = findObject(s, s.place)?.area ?? "home";
+      const hiding = all.find(o => o.area === area && hiddenSecret(s, o.id));
+      if (hiding) return { thought: `There is something about the ${hiding.name}...`, moves: [{ type: "look_closer", target: hiding.id }] };
       const unseen = all.filter(o => !s.tried[`go:${o.id}`] && o.id !== s.place);
       if (unseen.length) return { thought: "What is over there?", moves: [{ type: "go", target: unseen[0].id }] };
       for (const o of all) {

@@ -39,6 +39,8 @@ export function snapshot(s: State, tickSeconds: number) {
       latest: p.pieces.length ? p.pieces[p.pieces.length - 1].text.slice(0, 400) : "",
       friend: p.friend, at: p.at,
     })),
+    secrets: s.secrets ?? {},
+    wonder: s.wonder ? { day: s.wonder.day, text: s.wonder.text, answer: s.wonder.answer } : null,
     ticks: s.ticks,
   };
 }

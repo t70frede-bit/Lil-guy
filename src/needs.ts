@@ -15,7 +15,7 @@ export function freshNeeds(): Needs {
 export function drift(n: Needs): Needs {
   return {
     energy: clamp(n.energy - 0.005),
-    curiosity: clamp(n.curiosity + 0.03),
+    curiosity: clamp(n.curiosity + 0.05), // builds fast: he gets restless sooner
     company: clamp(n.company - 0.01),
     feisty: clamp(n.feisty - 0.03),
     fulfilled: clamp(n.fulfilled - 0.01),

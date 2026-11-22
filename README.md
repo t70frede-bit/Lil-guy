@@ -7,10 +7,12 @@ A very small creature who lives on a server, gets bored, lonely and feisty on hi
 - **Needs** (energy, curiosity, company, feistiness, fulfilment) drift every tick in plain code. No AI.
 - **Mood and shape** follow his needs: a ball when content or curious, a spiky ball when feisty, a cube when lonely, a droopy ball when sleepy.
 - **Brain**: every few minutes Claude picks 1 to 3 moves from a fixed menu (go somewhere, look closer, try something, rest, sleep, wish, message Frederik). Anything outside the menu is ignored.
-- **Rewards**: doing something for the first time feels great; repeating the same thing makes him bored, so he keeps exploring.
+- **Rewards**: doing something for the first time feels wonderful; repeats wear off fast and make him restless, so he keeps exploring.
+- **Secrets**: his world hides little secrets (world/world.json, `secrets`). Looking closer at a thing makes him notice one; finding it is the best feeling there is. Some lead to others, like a treasure map.
+- **I wonder**: each morning (Danish time) he picks one thing to find out or try that day. It only counts as found out once he has actually done something new.
 - **Wishmaster** (`src/wishmaster.ts`):
-  - a wish with no real need behind it is declined,
-  - a free thing that meets a real need is granted on the spot,
+  - he may wish for anything he wants,
+  - a free thing is granted on the spot,
   - anything that needs Frederik (company, real objects, money) is sent to Telegram with **Approve** and **Not now** buttons.
 - **Workshop** (`src/workshop.ts`): a building outside where he works on his own projects, like designing a new friend, making up a game or writing a story.
   - He proposes a project with a small plan (2 to 8 steps). Code, not AI, works out the token estimate (with a 20% margin) and the price in DKK.
