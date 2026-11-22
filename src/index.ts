@@ -3,6 +3,7 @@
 import { ClaudeBrain, RuleBrain, type Brain } from "./brain.js";
 import { ensureWorkshop, heardFromFrederik, resolveMore, resolveProject, resolveWish, step, type Outbox } from "./lilguy.js";
 import { kr } from "./workshop.js";
+import { checkComputer, leaveOnScreen, sitAtComputer, viaComputer } from "./computer.js";
 import { describe, mood, shape } from "./needs.js";
 import { publish, publishAssets } from "./publish.js";
 import { load, note, remember, save, type State } from "./state.js";
@@ -23,8 +24,9 @@ if (OWNER) s.ownerChatId = OWNER;
 // Frederik gave him a workshop for his own projects (2026-11-21).
 if (ensureWorkshop(s)) save(DATA, s);
 
-const outbox: Outbox = {
-  async say(text) { await send(`Lil guy: ${text}`); remember(s, "lil guy", text); },
+// Straight to Telegram. Lil guy's own messages go through his little computer (see `outbox` below).
+const telegramOut: Outbox = {
+  async say(text) { await send(`💻 Lil guy: ${text}`); remember(s, "lil guy", text); },
   async inform(text) { await send(`Wishmaster: ${text}`); },
   async ask(wish, why) {
     const msg = `Wishmaster: Lil guy wishes for ${wish.item}.${wish.reason ? ` He says: "${wish.reason}"` : ""}\nWhy I am asking you: ${why}`;
@@ -50,6 +52,9 @@ const outbox: Outbox = {
     await tg.send(s.ownerChatId, msg, [{ text: "Give more", data: `myes:${p.id}` }, { text: "Stop it", data: `mno:${p.id}` }]);
   },
 };
+
+/** His messages to Frederik are typed on his little computer, so you can see him do it in his world. */
+const outbox = viaComputer(s, telegramOut);
 
 function projects(): string {
   if (!s.projects.length) return "Lil guy has not planned any projects yet.";
@@ -92,11 +97,23 @@ async function handleText(chatId: number, text: string) {
   heardFromFrederik(s);
   remember(s, "frederik", text.slice(0, 1000));
   note(s, `Frederik said: ${text.slice(0, 200)}`);
+  if (s.sleeping) {
+    // He is fast asleep: the message waits on his computer until he wakes up and reads it.
+    leaveOnScreen(s, text.slice(0, 1000));
+    await send("Wishmaster: Lil guy is asleep. Your message is waiting on his computer, and he will read it when he wakes up.");
+    return;
+  }
+  sitAtComputer(s, "write to Frederik", "His computer went ping. He ran over, read Frederik's message and wrote back.");
   try {
     const reply = await brain.reply(s, text.slice(0, 1000));
-    remember(s, "lil guy", reply);
-    await send(`Lil guy: ${reply}`);
+    await telegramOut.say(reply);
   } catch (e) { console.error(e); }
+}
+
+/** What he says back to messages that waited on his computer while he slept. */
+async function answerWaiting(incoming: string): Promise<string | undefined> {
+  try { return await brain.reply(s, `(This waited on your computer while you were asleep. You just woke up and read it.)\n${incoming}`); }
+  catch (e) { console.error(e); return undefined; }
 }
 
 async function pollTelegram() {
@@ -136,6 +153,7 @@ async function pollTelegram() {
 async function lifeLoop() {
   for (;;) {
     await step(s, brain, outbox);
+    await checkComputer(s, telegramOut, answerWaiting);
     save(DATA, s);
     await publish(s, WORLD_URL, WORLD_TOKEN, TICK_SECONDS);
     await publishAssets(WORLD_URL, WORLD_TOKEN);

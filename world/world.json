@@ -37,6 +37,12 @@
         { "verb": "open the door", "from": "closed", "to": "open", "effect": { "curiosity": -0.04 }, "line": "Opened the door. So much outside!" },
         { "verb": "close the door", "from": "open", "to": "closed", "line": "Closed the door." },
         { "verb": "peek outside", "effect": { "curiosity": -0.06 }, "line": "Peeked outside. It is very big out there." } ] },
+    { "id": "computer", "name": "little computer", "area": "home", "kind": "computer", "pos": [-3.95, 1.0], "state": "off", "desc": "A tiny old computer on a little desk, with a round screen and chunky keys. This is where he writes to Frederik (the message move) and where Frederik's messages arrive. It has a dusty button that says INTERNET.",
+      "actions": [
+        { "verb": "switch on", "from": "off", "to": "on", "line": "Switched on his little computer. It hummed and the screen went warm and green." },
+        { "verb": "switch off", "to": "off", "line": "Switched off his little computer. The screen shrank to a dot and went dark." },
+        { "verb": "look at the screen", "from": "on", "effect": { "curiosity": -0.04 }, "line": "Looked at the screen. A little cursor blinked at him, waiting.", "lines": ["Looked at the screen. A little cursor blinked at him, waiting.", "Scrolled up and read his old messages to Frederik again.", "Pressed every key once, very carefully, to see what they do.", "Made the screen say HELLO in big letters."] },
+        { "verb": "press the internet button", "effect": { "curiosity": 0.05 }, "line": "Pressed the dusty INTERNET button. Nothing happened. It is not connected to anything.", "lines": ["Pressed the INTERNET button again. Still nothing.", "Blew the dust off the INTERNET button and pressed it. Nothing."] } ] },
     { "id": "field", "name": "empty field", "area": "outside", "kind": "field", "pos": [9, 0.5], "state": "empty", "desc": "Grass that goes on and on. Things could be built here.",
       "actions": [
         { "verb": "look around", "effect": { "curiosity": -0.08 }, "line": "Looked around the empty field. Lots of room for things." },

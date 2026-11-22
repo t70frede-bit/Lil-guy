@@ -162,6 +162,53 @@
       mesh(new THREE.TorusGeometry(0.42, 0.05, 8, 32), toon(0xc2473d), 0, 0.42, 0, g).rotation.y = 0.6;
       g.userData.ball = b; return () => {};
     },
+    computer(g) {
+      // his little computer on a low desk against the left wall, sized for him; the screen faces the room
+      g.rotation.y = Math.PI / 2;
+      const wood = toon(0x9a6b4a);
+      mesh(box(1.1, 0.06, 0.6), wood, 0, 0.45, 0, g);
+      [[-0.5, -0.25], [0.5, -0.25], [-0.5, 0.25], [0.5, 0.25]].forEach(([x, z]) => mesh(box(0.06, 0.45, 0.06), wood, x, 0.22, z, g));
+      const shell = toon(0xe9dfc8);
+      mesh(box(0.52, 0.42, 0.4), shell, 0, 0.7, -0.08, g);
+      mesh(box(0.3, 0.05, 0.22), shell, 0, 0.5, -0.08, g);
+      const screenMat = new THREE.MeshBasicMaterial({ color: 0x2a3a33 });
+      const screen = mesh(new THREE.PlaneGeometry(0.4, 0.3), screenMat, 0, 0.72, 0.125, g);
+      // lines of text that appear while he types, and a cursor
+      const lines = [0, 1, 2].map(i => { const l = mesh(new THREE.PlaneGeometry(0.28, 0.025), basic(0xb6ffcf), -0.02, 0.8 - i * 0.06, 0.127, g); l.visible = false; return l; });
+      const cursor = mesh(new THREE.PlaneGeometry(0.025, 0.04), basic(0xb6ffcf), -0.15, 0.62, 0.128, g);
+      const key = mesh(box(0.42, 0.03, 0.15), toon(0xd3c8ae), 0, 0.5, 0.18, g);
+      const btn = mesh(cyl(0.025, 0.025, 0.02, 10), toon(0xc2473d), 0.2, 0.55, 0.13, g); btn.rotation.x = Math.PI / 2; // the dusty INTERNET button
+      const led = mesh(sph(0.018, 8, 6), basic(0x444444), -0.2, 0.53, 0.13, g);
+      // a paper envelope that flies off when he sends a message
+      const env = new THREE.Group(); env.visible = false; g.add(env);
+      mesh(box(0.16, 0.1, 0.01), basic(0xfff6e0), 0, 0, 0, env);
+      const flap = mesh(new THREE.ConeGeometry(0.08, 0.05, 3), basic(0xf0c27b), 0, 0.025, 0.006, env); flap.rotation.z = Math.PI; flap.scale.z = 0.1;
+      let on = false, waiting = false, t0 = null;
+      g.userData.act = (now, verb) => {
+        if (t0 === null) t0 = now;
+        const t = now - t0; // seconds since he started, so typing, sending and flying happen in order
+        on = true; screenMat.color.set(0x1f6b4a);
+        const typing = /write|type/.test(verb), reading = /read/.test(verb), button = /internet/.test(verb);
+        key.position.y = 0.5 - (typing ? Math.abs(Math.sin(t * 22)) * 0.008 : 0);
+        lines.forEach((l, i) => { const k = typing ? Math.min(1, Math.max(0, t * 1.2 - i)) : reading || !button ? 1 : 0; l.visible = k > 0; l.scale.x = Math.max(0.01, k); l.position.x = -0.02 - (1 - k) * 0.14; });
+        cursor.visible = Math.sin(t * 8) > 0;
+        btn.position.z = button ? 0.13 - Math.abs(Math.sin(t * 6)) * 0.01 : 0.13;
+        if (button) screenMat.color.set(Math.sin(t * 6) > 0 ? 0x1f6b4a : 0x2a3a33);
+        // after a little typing the message folds into an envelope and flies out of the screen and away
+        const fly = typing ? (t - 3.6) / 2 : -1;
+        env.visible = fly > 0 && fly < 1;
+        if (fly > 0) { env.position.set(Math.sin(fly * 9) * 0.1, 0.75 + fly * 2.2, 0.2 + fly * 1.4); env.rotation.set(0, fly * 6, Math.sin(fly * 12) * 0.4); }
+      };
+      g.userData.rest = () => { t0 = null; env.visible = false; key.position.y = 0.5; btn.position.z = 0.13; update(); };
+      function update() {
+        screenMat.color.set(waiting ? 0x2f8f5b : on ? 0x1f6b4a : 0x2a3a33);
+        led.material.color.set(on || waiting ? 0x7dff9e : 0x444444);
+        lines.forEach((l, i) => { l.visible = on && i < 2; l.scale.x = 1; l.position.x = -0.02; });
+        cursor.visible = on || waiting;
+      }
+      g.userData.blinkScreen = t => { if (waiting) screenMat.color.set(Math.sin(t * 4) > 0 ? 0x4fd18b : 0x1f6b4a); };
+      return st => { on = st === 'on'; waiting = st === 'a message is waiting'; update(); };
+    },
     door(g) {
       const pivot = new THREE.Group(); pivot.position.set(0, 0, -0.75); g.add(pivot);
       mesh(box(0.1, 2.2, 1.5), toon(0x8a5a3c), 0, 1.1, 0.75, pivot);
@@ -396,7 +443,7 @@
   }
 
   // Where he stands to use each thing.
-  const SPOT = { bed: [-2.0, -0.6], shelf: [-1.0, -1.3], rug: [0, 0.4], window: [1.6, -1.4], lamp: [2.4, -1.3], ball: [-0.8, 1.6], doorstep: [3.7, 0.6], field: [9, 0.6], stone: [6.5, 2.4] };
+  const SPOT = { bed: [-2.0, -0.6], shelf: [-1.0, -1.3], rug: [0, 0.4], window: [1.6, -1.4], lamp: [2.4, -1.3], ball: [-0.8, 1.6], doorstep: [3.7, 0.6], computer: [-3.25, 1.6], field: [9, 0.6], stone: [6.5, 2.4] };
   const PLACE = { home: 'In his house', outside: 'Outside' };
 
   // Empty plots outside: a stake and a little sign, until something is built there.
@@ -552,7 +599,7 @@
   const LIE = /^(nap|snuggle)/;
   function startAct(object, verb, line) {
     Object.values(things).forEach(th => { if (th.group.userData.rest) th.group.userData.rest(); });
-    actTarget = object; actVerb = verb || ''; actUntil = 0; actPending = LIE.test(actVerb) ? 12000 : 5000; // starts once he has walked there
+    actTarget = object; actVerb = verb || ''; actUntil = 0; actPending = LIE.test(actVerb) ? 12000 : object === 'computer' && /write/.test(actVerb) ? 6500 : 5000; // starts once he has walked there
     if (line) toast(line);
   }
   function walkTo(p) {
@@ -816,7 +863,7 @@
     if (things.blanket) things.blanket.group.visible = !lying;
 
     const radius = W.s + W.c * 0.84 + W.k;
-    const hop = (!moving && !reduce && !S.sleeping && !(acting && LIE.test(actVerb)) && (acting || m.curious > 0.3)) ? Math.abs(Math.sin(t * (acting ? 8 : 5))) * (acting ? 0.25 : 0.08) : 0;
+    const hop = (!moving && !reduce && !S.sleeping && !(acting && LIE.test(actVerb)) && (acting || m.curious > 0.3)) ? Math.abs(Math.sin(t * (acting ? 8 : 5))) * (acting ? (actTarget === 'computer' ? 0.03 : 0.25) : 0.08) : 0;
     const shiver = m.feisty > 0.4 && !reduce ? Math.sin(t * 40) * 0.015 * m.feisty : 0;
     const legH = 0.42 * (moving && W.c < 0.3 ? 0.15 : 1);
     guy.position.y = lerp(guy.position.y, lying ? radius * 0.92 + Math.sin(t * 1.2) * 0.04 : radius * (1 - W.d * 0.12) + legH + hop, 0.15);
@@ -842,7 +889,8 @@
       if (m.feisty > 0.4) ang = 2.3 + Math.sin(t * 14 + s) * 0.25;
       if (m.lonely > 0.5) ang = 0.1;
       if (m.sleepy > 0.5) ang = 0.05;
-      if (acting) ang = /punch/.test(actVerb) ? 1.5 + Math.abs(Math.sin(t * 10 + s * 1.6)) * 0.4 : 2.4 + Math.sin(t * 10 + s * 1.5) * 0.4;
+      if (acting && actTarget === 'computer') ang = /internet/.test(actVerb) ? (s > 0 ? 1.4 : 0.4) : 1.1 + Math.abs(Math.sin(t * 16 + s * 1.7)) * 0.3;
+      else if (acting) ang = /punch/.test(actVerb) ? 1.5 + Math.abs(Math.sin(t * 10 + s * 1.6)) * 0.4 : 2.4 + Math.sin(t * 10 + s * 1.5) * 0.4;
       a.rotation.z = lerp(a.rotation.z, s * ang, 0.12);
       a.scale.setScalar(lerp(a.scale.x, armTuck, 0.1));
     });
@@ -863,6 +911,7 @@
       if (th.popIn !== undefined) { th.popIn = Math.min(1, th.popIn + dt * 1.5); th.group.scale.setScalar(0.01 + 0.99 * (1 - Math.pow(1 - th.popIn, 3))); if (th.popIn >= 1) delete th.popIn; }
       const u = th.group.userData;
       if (u.blink) u.blink.material.color.setHSL((t * 0.2) % 1, 0.6, 0.7);
+      if (u.blinkScreen) u.blinkScreen(t);
       if (u.water) u.water.material.color.setHSL(0.56, 0.5, 0.58 + Math.sin(t * 1.5) * 0.03);
     });
 
