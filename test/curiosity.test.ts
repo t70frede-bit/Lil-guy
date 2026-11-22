@@ -1,19 +1,31 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { RuleBrain } from "../src/brain.js";
-import { doMove, step, type Outbox } from "../src/lilguy.js";
+import { doMove, step, type Outbox, luck } from "../src/lilguy.js";
 import { drift, freshNeeds } from "../src/needs.js";
 import { snapshot } from "../src/publish.js";
 import { freshState } from "../src/state.js";
 import { answerWonder, needsWonder, setWonder, today } from "../src/wonder.js";
 import { availableActions, findObject, hiddenSecret, noveltyReward, SECRETS } from "../src/world.js";
 
+luck.mishapChance = 0; // first tries always work here; mishaps have their own tests
+
 const out: Outbox = { async say() {}, async ask() {}, async inform() {}, async propose() {}, async askMore() {} };
 
 test("a first is worth a lot more than a repeat, and repeats wear off fast", () => {
   assert.ok(noveltyReward(0) >= 0.4);
   assert.ok(noveltyReward(1) <= noveltyReward(0) / 4);
-  assert.ok(noveltyReward(3) < 0.02);
+  assert.ok(noveltyReward(5) < noveltyReward(2) && noveltyReward(2) < noveltyReward(1), "the more often, the less");
+});
+
+test("a repeat's reward recovers with time, but never beats a first and never hits zero", () => {
+  for (const n of [1, 2, 5, 20, 200]) {
+    assert.ok(noveltyReward(n, 24) > noveltyReward(n, 0), `recovers after a day (${n}x)`);
+    assert.ok(noveltyReward(n, 12) > noveltyReward(n, 0) && noveltyReward(n, 12) < noveltyReward(n, 24), "recovers gradually");
+    assert.ok(noveltyReward(n, 1e6) <= noveltyReward(0) / 2, "a first is always best");
+    assert.ok(noveltyReward(n, 48) >= 0.04, "never completely phased out");
+  }
+  assert.ok(noveltyReward(20, 48) < noveltyReward(2, 48), "something done very often recovers less");
 });
 
 test("repeating the same thing makes him more restless, not less", async () => {

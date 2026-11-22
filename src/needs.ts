@@ -2,7 +2,7 @@
 
 export type NeedName = "energy" | "curiosity" | "company" | "feisty" | "fulfilled";
 export type Needs = Record<NeedName, number>;
-export type Mood = "content" | "curious" | "lonely" | "feisty" | "sleepy";
+export type Mood = "content" | "curious" | "lonely" | "feisty" | "sleepy" | "proud";
 export type Shape = "ball" | "spiky ball" | "cube" | "droopy ball";
 
 export const clamp = (v: number, lo = 0, hi = 1) => Math.min(hi, Math.max(lo, v));
@@ -26,9 +26,11 @@ export function sleepTick(n: Needs): Needs {
   return { ...n, energy: clamp(n.energy + 0.08), feisty: clamp(n.feisty - 0.05) };
 }
 
-export function moodWeights(n: Needs, sleeping: boolean) {
+export function moodWeights(n: Needs, sleeping: boolean, proud = false) {
   const sleepy = sleeping ? 1 : clamp((0.3 - n.energy) / 0.3);
   return {
+    // A proud moment wins over most moods for a little while, but not over being very tired.
+    proud: proud && !sleeping ? 0.85 * (1 - sleepy) : 0,
     lonely: clamp((0.4 - n.company) / 0.4),
     feisty: clamp((n.feisty - 0.45) / 0.55),
     sleepy,
@@ -37,8 +39,8 @@ export function moodWeights(n: Needs, sleeping: boolean) {
   };
 }
 
-export function mood(n: Needs, sleeping = false): Mood {
-  const w = moodWeights(n, sleeping);
+export function mood(n: Needs, sleeping = false, proud = false): Mood {
+  const w = moodWeights(n, sleeping, proud);
   return (Object.entries(w) as [Mood | "lonely", number][]).sort((a, b) => b[1] - a[1])[0][0] as Mood;
 }
 

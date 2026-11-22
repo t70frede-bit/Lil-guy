@@ -157,6 +157,14 @@
       const light = new THREE.PointLight(0xffd48a, 0, 4.5, 2); light.position.set(0, 1.6, 0.3); g.add(light);
       return st => { const on = st === 'on'; shade.material.emissive.set(on ? 0xffc35a : 0x000000); light.intensity = on ? 0.9 : 0; };
     },
+    plant(g) {
+      // a tiny plant in a thimble pot, smaller than him; its leaves droop when it is thirsty
+      mesh(cyl(0.16, 0.12, 0.26, 16), toon(0xb0b4b8), 0, 0.13, 0, g);
+      mesh(cyl(0.15, 0.15, 0.02, 16), toon(0x5b4636), 0, 0.25, 0, g);
+      mesh(cyl(0.015, 0.015, 0.3, 6), toon(0x2f8f5b), 0, 0.4, 0, g);
+      const leaves = [-1, 1].map(side => { const l = new THREE.Group(); l.position.set(0, 0.46, 0); g.add(l); const leaf = mesh(sph(0.09, 10, 8), toon(0x55b36b), side * 0.09, 0, 0, l); leaf.scale.set(1.4, 0.35, 0.8); l.userData.side = side; return l; });
+      return st => { const thirsty = /thirsty/.test(st || ''); leaves.forEach(l => { l.rotation.z = l.userData.side * (thirsty ? -0.7 : 0.25); }); };
+    },
     ball(g) {
       const b = mesh(sph(0.42, 24, 16), toon(0xe0a548), 0, 0.42, 0, g);
       mesh(new THREE.TorusGeometry(0.42, 0.05, 8, 32), toon(0xc2473d), 0, 0.42, 0, g).rotation.y = 0.6;
@@ -550,7 +558,7 @@
     const sleepy = S.sleeping ? 1 : clamp((0.3 - n.energy) / 0.3);
     return { lonely: clamp((0.4 - n.company) / 0.4), feisty: clamp((n.feisty - 0.45) / 0.55), sleepy, curious: clamp((n.curiosity - 0.5) / 0.5) * (1 - sleepy) };
   }
-  const palette = { content: new THREE.Color(0xffc857), curious: new THREE.Color(0xffb347), lonely: new THREE.Color(0x8fa7d6), feisty: new THREE.Color(0xff7a6b), sleepy: new THREE.Color(0xb9a8e0) };
+  const palette = { content: new THREE.Color(0xffc857), curious: new THREE.Color(0xffb347), lonely: new THREE.Color(0x8fa7d6), feisty: new THREE.Color(0xff7a6b), sleepy: new THREE.Color(0xb9a8e0), proud: new THREE.Color(0xffd23f) };
   const W = { s: 1, c: 0, k: 0, d: 0 };
   const F = { open: 1, size: 1, brow: 0, curve: 0.5, mouthOpen: 0.1, look: 0, blink: 0 };
   let lastW = '';
@@ -710,8 +718,8 @@
   }
 
   // ---------- Highlights: only the moments worth remembering ----------
-  const HL_ICON = { project: '\ud83d\udee0\ufe0f', first: '\u2728', wish: '\ud83c\udf20', yes: '\ud83c\udf89', no: '\u2601\ufe0f', built: '\ud83d\udd28', mood: '\ud83d\udcad', chat: '\ud83d\udcac', gift: '\ud83c\udf81', secret: '\ud83d\udddd\ufe0f', wonder: '\ud83e\udd14' };
-  const HL_BIG = { built: 1, yes: 1, wish: 1, project: 1, secret: 1, wonder: 1 };
+  const HL_ICON = { project: '\ud83d\udee0\ufe0f', first: '\u2728', wish: '\ud83c\udf20', yes: '\ud83c\udf89', no: '\u2601\ufe0f', built: '\ud83d\udd28', mood: '\ud83d\udcad', chat: '\ud83d\udcac', gift: '\ud83c\udf81', secret: '\ud83d\udddd\ufe0f', wonder: '\ud83e\udd14', theory: '\ud83d\udca1', self: '\ud83c\udf1f', goal: '\ud83c\udf1f', ritual: '\ud83c\udf3f', oops: '\ud83d\ude35' };
+  const HL_BIG = { built: 1, yes: 1, wish: 1, project: 1, secret: 1, wonder: 1, goal: 1 };
   // Until his server sends highlights, pick them out of the recent diary.
   function guessHighlights(diary) {
     const out = [];

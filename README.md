@@ -7,7 +7,7 @@ A very small creature who lives on a server, gets bored, lonely and feisty on hi
 - **Needs** (energy, curiosity, company, feistiness, fulfilment) drift every tick in plain code. No AI.
 - **Mood and shape** follow his needs: a ball when content or curious, a spiky ball when feisty, a cube when lonely, a droopy ball when sleepy.
 - **Brain**: every few minutes Claude picks 1 to 3 moves from a fixed menu (go somewhere, look closer, try something, rest, sleep, wish, message Frederik). Anything outside the menu is ignored.
-- **Rewards**: doing something for the first time feels wonderful; repeats wear off fast and make him restless, so he keeps exploring.
+- **Rewards**: doing something for the first time feels wonderful. A repeat is worth less the more often he has done it, recovers a little over a day away from it, and never beats a first.
 - **Secrets**: his world hides little secrets (world/world.json, `secrets`). Looking closer at a thing makes him notice one; finding it is the best feeling there is. Some lead to others, like a treasure map.
 - **I wonder**: each morning (Danish time) he picks one thing to find out or try that day. It only counts as found out once he has actually done something new.
 - **Wishmaster** (`src/wishmaster.ts`):
@@ -25,7 +25,7 @@ Character sheet: `src/character.ts`. Places and moves: `src/world.ts`.
 
 ## Telegram commands
 
-`/start` (first time only, makes you the owner), `/status`, `/diary`, `/projects`, `/pause`, `/resume`. Any other text is a message to lil guy, and he answers.
+`/start` (first time only, makes you the owner), `/status`, `/diary`, `/projects`, `/me` (who he is, his theories and his goal in life), `/pause`, `/resume`. Any other text is a message to lil guy, and he answers.
 
 ## Run it locally
 

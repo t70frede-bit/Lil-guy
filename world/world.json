@@ -28,6 +28,11 @@
       "actions": [
         { "verb": "switch on", "from": "off", "to": "on", "effect": { "curiosity": -0.05 }, "line": "Switched the lamp on. Light!" },
         { "verb": "switch off", "from": "on", "to": "off", "line": "Switched the lamp off." } ] },
+    { "id": "plant", "name": "little plant", "area": "home", "kind": "plant", "pos": [0.5, -2.1], "state": "a bit thirsty", "desc": "A tiny green plant in a thimble pot, smaller than him. It needs looking after.",
+      "actions": [
+        { "verb": "water it", "from": "a bit thirsty", "to": "perky", "care": true, "effect": { "fulfilled": 0.05, "company": 0.03 }, "line": "Gave the little plant a careful drink of water." },
+        { "verb": "talk to it", "care": true, "effect": { "company": 0.06 }, "line": "Told the little plant about his day.", "lines": ["Told the little plant about his day.", "Whispered a secret to the little plant.", "Asked the little plant how it was feeling. It seemed fine.", "Told the little plant it was growing very well."] },
+        { "verb": "check on it", "care": true, "effect": { "fulfilled": 0.03 }, "line": "Checked the little plant's leaves, one by one." } ] },
     { "id": "ball", "name": "toy ball", "area": "home", "kind": "ball", "pos": [-1.6, 1.4], "state": "here", "desc": "A ball that is bigger than him.",
       "actions": [
         { "verb": "kick", "effect": { "feisty": -0.2, "energy": -0.03 }, "line": "Kicked the toy ball. Take that!" },

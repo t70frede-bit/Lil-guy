@@ -4,9 +4,9 @@ import { ClaudeBrain, RuleBrain, type Brain } from "./brain.js";
 import { ensureWorkshop, heardFromFrederik, resolveMore, resolveProject, resolveWish, step, type Outbox } from "./lilguy.js";
 import { kr } from "./workshop.js";
 import { checkComputer, leaveOnScreen, sitAtComputer, viaComputer } from "./computer.js";
-import { describe, mood, shape } from "./needs.js";
+import { describe, shape } from "./needs.js";
 import { publish, publishAssets } from "./publish.js";
-import { load, note, remember, save, type State } from "./state.js";
+import { load, moodOf, note, remember, save, type State } from "./state.js";
 import { Telegram } from "./telegram.js";
 
 const env = process.env;
@@ -69,7 +69,7 @@ async function send(text: string) {
 }
 
 function status(): string {
-  const m = mood(s.needs, s.sleeping);
+  const m = moodOf(s);
   return [
     `Lil guy is ${s.paused ? "paused" : s.sleeping ? "asleep" : "awake"} at the ${s.place}.`,
     `Mood: ${m}, so he is a ${shape(m)}.`,
@@ -80,17 +80,33 @@ function status(): string {
   ].join("\n");
 }
 
+/** Who he is, in his own words, for /me. */
+function aboutHim(): string {
+  const me = s.self;
+  if (!me) return "Lil guy has not decided things about himself yet. He will the next time he is awake.";
+  return [
+    `Favourite colour: ${me.colour}. Favourite thing: ${me.favourite}.`,
+    `Catchphrase: "${me.catchphrase}". A bit scared of: ${me.fear}.`,
+    `How he makes things: ${me.style}`,
+    Object.keys(me.names).length ? `His names for things: ${Object.entries(me.names).map(([id, n]) => `${id} = ${n}`).join(", ")}.` : "",
+    me.goal ? `Goal in life: ${me.goal}${me.goalWhy ? ` (${me.goalWhy})` : ""}` : `Goal in life: still thinking about it (${me.goalThoughts.length} notes so far).${me.goalThoughts.length ? ` Latest: ${me.goalThoughts[me.goalThoughts.length - 1].text}` : ""}`,
+    me.theories.length ? `Theories:\n${me.theories.map(x => `- ${x.about}: ${x.belief}${x.was ? ` (used to think: ${x.was})` : ""}`).join("\n")}` : "",
+    me.lines.length ? `What he has learned about himself:\n${me.lines.slice(-6).map(l => `- ${l}`).join("\n")}` : "",
+  ].filter(Boolean).join("\n\n");
+}
+
 async function handleText(chatId: number, text: string) {
   if (!s.ownerChatId && text.startsWith("/start")) {
     s.ownerChatId = chatId;
     note(s, "Met Frederik for the first time.");
-    await send("Wishmaster: Hello Frederik. Lil guy now knows how to reach you. Commands: /status, /diary, /projects, /pause, /resume.");
+    await send("Wishmaster: Hello Frederik. Lil guy now knows how to reach you. Commands: /status, /diary, /projects, /me, /pause, /resume.");
     return;
   }
   if (chatId !== s.ownerChatId) return; // only Frederik can talk to him
   if (text === "/status") return send(status());
   if (text === "/diary") return send(s.diary.slice(-10).map(d => `${d.at.slice(11, 16)} ${d.text}`).join("\n") || "Nothing yet.");
   if (text === "/projects") return send(projects());
+  if (text === "/me") return send(aboutHim());
   if (text === "/pause") { s.paused = true; note(s, "Frederik paused him."); return send("Wishmaster: Lil guy is paused. /resume to wake him."); }
   if (text === "/resume") { s.paused = false; note(s, "Frederik resumed him."); return send("Wishmaster: Lil guy is running again."); }
   if (text.startsWith("/")) return;
