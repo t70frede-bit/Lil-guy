@@ -31,7 +31,7 @@ if (OWNER) s.ownerChatId = OWNER;
 // Frederik's secret key for the private Computer panel on his page (chats and emails).
 if (!s.privateKey) { s.privateKey = randomBytes(24).toString("base64url"); save(DATA, s); }
 const computerLink = () => `${WORLD_URL.replace(/\/$/, "")}/#computer=${s.privateKey}`;
-const COMPUTER_HELP = () => `Wishmaster: This is your private link to lil guy's computer: his chats with you and the emails he sends and gets. Open it once on your phone, and a Computer button appears on his page there. Do not share it.\n${computerLink()}\n\nSend /computer to get it again, or /newlink to make a new one (the old one stops working).`;
+const COMPUTER_HELP = () => `Wishmaster: This is your private link to lil guy's computer: his chats with you and the emails he sends and gets. Tap it once, and a Computer button appears on his page. Using his page as an app on your home screen? Open the app, tap About, then "Frederik? Open his computer here", and paste this link. Do not share it.\n${computerLink()}\n\nSend /computer to get it again, or /newlink to make a new one (the old one stops working).`;
 // Frederik gave him a workshop for his own projects (2026-11-21).
 if (ensureWorkshop(s)) save(DATA, s);
 

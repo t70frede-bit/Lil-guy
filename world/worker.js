@@ -21,7 +21,10 @@
 //   POST /mail/send  his server sends an email from his address: { to, subject, text }.
 //   All three need the same token as /state. Settings (set on the Worker, not in the repo):
 //   MAIL_ADDRESS (his address), FORWARD_TO (optional: an inbox to forward copies to, must be verified),
-//   MAIL_ALLOWED_TO (comma list of addresses he may write to; empty = anyone the EMAIL binding allows).
+//   MAIL_ALLOWED_TO (comma list of addresses he may always write to, e.g. Frederik),
+//   RESEND_API_KEY (secret: sends through Resend, where gokkehub.com is a verified domain; his server
+//   only lets him write to MAIL_ALLOWED_TO and to people who wrote to him first). Without it, the EMAIL
+//   binding is used, which on Cloudflare's free plan only reaches verified addresses in MAIL_ALLOWED_TO.
 import PAGE from "./index.html";
 import APP from "./app.js";
 import WORLD from "./world.json";
@@ -86,7 +89,8 @@ async function handleMail(req, env, pathname) {
       if (!v) continue;
       try { messages.push({ id: k.name, ...JSON.parse(v) }); } catch { await env.LILGUY.delete(k.name); }
     }
-    return json(JSON.stringify({ address: mailAddress(env), canSendTo: env.EMAIL ? allowedTo(env) : [], messages }));
+    const canSend = !!env.RESEND_API_KEY || (!!env.EMAIL && allowedTo(env).length > 0);
+    return json(JSON.stringify({ address: mailAddress(env), canSend, canSendTo: canSend ? allowedTo(env) : [], messages }));
   }
   if (pathname === "/mail/done" && req.method === "POST") {
     let ids;
@@ -96,7 +100,7 @@ async function handleMail(req, env, pathname) {
     return json('{"ok":true}');
   }
   if (pathname === "/mail/send" && req.method === "POST") {
-    if (!env.EMAIL) return json('{"error":"sending is not set up"}', 503);
+    if (!env.EMAIL && !env.RESEND_API_KEY) return json('{"error":"sending is not set up"}', 503);
     let m;
     try { m = await req.json(); } catch { return json('{"error":"bad json"}', 400); }
     const to = String(m?.to ?? "").trim().toLowerCase();
@@ -104,13 +108,22 @@ async function handleMail(req, env, pathname) {
     const text = String(m?.text ?? "").slice(0, 2000);
     if (!/^[^\s@<>()",;:]+@[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(to) || !text) return json('{"error":"bad email"}', 400);
     const allowed = allowedTo(env);
-    if (allowed.length && !allowed.includes(to)) return json('{"error":"his computer cannot send to that address"}', 403);
+    if (!env.RESEND_API_KEY && !allowed.includes(to)) return json('{"error":"his computer cannot send to that address"}', 403);
     const day = new Date().toISOString().slice(0, 10);
     const count = Number(await env.LILGUY.get(`sent:${day}`) ?? 0);
     if (count >= MAX_SENT_PER_DAY) return json('{"error":"enough emails today"}', 429);
     await env.LILGUY.put(`sent:${day}`, String(count + 1), { expirationTtl: 3 * 86400 });
     try {
-      await env.EMAIL.send({ from: { email: mailAddress(env), name: "Lil guy" }, to, subject: subject || "Hello from lil guy", text });
+      if (env.RESEND_API_KEY) {
+        const r = await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: { authorization: `Bearer ${env.RESEND_API_KEY}`, "content-type": "application/json" },
+          body: JSON.stringify({ from: `Lil guy <${mailAddress(env)}>`, to: [to], subject: subject || "Hello from lil guy", text }),
+        });
+        if (!r.ok) throw new Error(`Resend said ${r.status}: ${(await r.text()).slice(0, 150)}`);
+      } else {
+        await env.EMAIL.send({ from: { email: mailAddress(env), name: "Lil guy" }, to, subject: subject || "Hello from lil guy", text });
+      }
     } catch (e) {
       return json(JSON.stringify({ error: String(e?.message ?? e).slice(0, 200) }), 502);
     }
@@ -125,7 +138,7 @@ async function sha256(text) {
 }
 
 export default {
-  // A new email for lil guy. Frederik always gets a copy; his server picks up the other one.
+  // A new email for lil guy. It waits here for his server (and goes to FORWARD_TO too, if set).
   async email(message, env) {
     if (!env.MAIL_ADDRESS || message.to.toLowerCase() !== mailAddress(env)) { message.setReject("Unknown address"); return; }
     let raw = "";

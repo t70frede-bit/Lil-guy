@@ -112,6 +112,8 @@ export function load(path: string): State {
   try { s = { ...freshState(), ...JSON.parse(readFileSync(path, "utf8")) }; }
   catch { return freshState(); }
   backfillHighlights(s);
+  // Before his computer kept a history: start it with the chat he still remembers.
+  if (!s.log && s.chat?.length) s.log = s.chat.map(c => ({ at: s.diary.at(-1)?.at ?? new Date().toISOString(), kind: "chat" as const, dir: c.from === "frederik" ? "in" as const : "out" as const, who: c.from === "frederik" ? "Frederik" : "Lil guy", text: c.text }));
   return s;
 }
 

@@ -182,3 +182,29 @@ test("his computer keeps his chats and emails privately, never on the public pag
   const page = JSON.stringify(snapshot(s, 180));
   for (const secret of ["plant", "Sprout grew", "Rain", "frederik@example.com", s.privateKey!]) assert.ok(!page.includes(secret), secret);
 });
+
+test("with a sending service, he may answer people who wrote to him, and nobody else", async () => {
+  const s = freshState();
+  mailOf(s).canSend = true;
+  assert.ok(!emailText(s).includes("write_email"), "nobody to write to yet");
+  receive(s, [await parseLetter("mail:20", raw("mia@example.org", "Hi", "Do you like snails?"), "mia@example.org", "2026-11-23T10:00:00Z")]);
+  assert.match(emailText(s), /You can write to: mia@example.org/);
+  const { out, sent } = recorder();
+  await doMove(s, { type: "write_email", target: "mia@example.org", title: "Snails", text: "I like snails. They carry their house." }, out);
+  await doMove(s, { type: "write_email", target: "random@example.net", title: "Hi", text: "Hello!" }, out);
+  assert.deepEqual(sent.map(x => x.to), ["mia@example.org"]);
+  assert.equal(s.log!.at(-1)!.dir, "out", "it shows on his computer page");
+});
+
+test("his computer history starts with the chat he still remembers", async () => {
+  const { load, save } = await import("../src/state.js");
+  const { mkdtempSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  const { tmpdir } = await import("node:os");
+  const f = join(mkdtempSync(join(tmpdir(), "lg-")), "s.json");
+  const s = freshState();
+  s.chat = [{ from: "frederik", text: "Hi" }, { from: "lil guy", text: "Hello!" }];
+  save(f, s);
+  const l = load(f);
+  assert.deepEqual(l.log!.map(x => `${x.who}:${x.text}`), ["Frederik:Hi", "Lil guy:Hello!"]);
+});

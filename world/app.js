@@ -34,16 +34,18 @@
   // ---------- His computer (private) ----------
   // Frederik's private link (/#computer=KEY) is remembered on this device only, and the hash is wiped
   // from the address bar. The key opens /private on the Worker; nobody without it sees anything.
+  const KEY_RE = /computer=([A-Za-z0-9_-]{20,})/;
   let computerKey = null;
-  try {
-    const m = location.hash.match(/computer=([A-Za-z0-9_-]{20,})/);
-    if (m) { localStorage.setItem('lilguyComputer', m[1]); history.replaceState(null, '', location.pathname + location.search); }
-    computerKey = localStorage.getItem('lilguyComputer');
-  } catch (e) { const m = location.hash.match(/computer=([A-Za-z0-9_-]{20,})/); computerKey = m ? m[1] : null; }
-  if (computerKey) {
+  const remember = k => { try { localStorage.setItem('lilguyComputer', k); } catch (e) {} };
+  {
+    const m = location.hash.match(KEY_RE);
+    if (m) { computerKey = m[1]; remember(computerKey); try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {} }
+    if (!computerKey) { try { computerKey = localStorage.getItem('lilguyComputer'); } catch (e) {} }
+  }
+  function setupComputer() {
     const btn = $('computerBtn'), list = $('logList');
     let filter = 'all', log = [], loadTimer = 0;
-    btn.hidden = false;
+    btn.hidden = false; btn.dataset.ready = '1';
     const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
     const dayOf = iso => new Date(iso).toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' });
     function render() {
@@ -88,9 +90,28 @@
     }));
     $('forgetKey').addEventListener('click', () => {
       try { localStorage.removeItem('lilguyComputer'); } catch (e) {}
-      computerKey = null; clearInterval(loadTimer); log = []; list.replaceChildren(); btn.hidden = true; show('computer');
+      computerKey = null; clearInterval(loadTimer); log = []; list.replaceChildren(); btn.hidden = true; $('unlock').hidden = false; show('computer');
     });
   }
+  if (computerKey) setupComputer();
+  if (computerKey) $('unlock').hidden = true;
+  $('unlockForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const raw = $('unlockInput').value.trim();
+    const m = raw.match(KEY_RE) || raw.match(/^([A-Za-z0-9_-]{20,})$/);
+    const msg = $('unlockMsg');
+    if (!m) { msg.textContent = 'That does not look like the link. It ends with #computer= and a long code.'; return; }
+    try {
+      const r = await fetch('/private', { headers: { 'x-key': m[1] }, cache: 'no-store' });
+      if (!r.ok) { msg.textContent = 'That link does not open his computer. Send /computer to the bot for the newest one.'; return; }
+    } catch (err) { msg.textContent = 'Could not reach his computer just now. Try again in a moment.'; return; }
+    computerKey = m[1]; remember(computerKey);
+    $('unlockInput').value = ''; msg.textContent = '';
+    $('unlock').hidden = true;
+    if (!$('computerBtn').dataset.ready) setupComputer();
+    $('computerBtn').hidden = false;
+    if (openPanel !== 'computer') $('computerBtn').click();
+  });
 
   const toastEl = $('toast'); let toastTimer = 0;
   function toast(text) { toastEl.textContent = text; toastEl.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => toastEl.classList.remove('show'), 5000); }

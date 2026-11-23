@@ -22,9 +22,9 @@ A very small creature who lives on a server, gets bored, lonely and feisty on hi
 - **Email** (`src/email.ts`): his own address, lilguy@gokkehub.com, on his little computer.
   - Cloudflare Email Routing hands his mail to the world page's Worker, and his server picks it up. Frederik sees every email in full on Telegram (links included, for confirm links); forwarding to an inbox is optional.
   - Emails are letters to read, never orders: links, addresses and long numbers are blanked, and account mail (codes, log-ins, money services) is never shown to him at all. Nothing from email goes on his public page.
-  - He can write at most 3 emails a day, only to addresses his computer allows (on Cloudflare's free plan, addresses Frederik verified) or to people who wrote him a real letter. Frederik sees every email he sends.
+  - He can write at most 3 emails a day, only to people who wrote him a real letter first (and any address in MAIL_ALLOWED_TO). Sending goes through Resend (RESEND_API_KEY secret on the Worker; gokkehub.com is a verified Resend domain). Frederik sees every email he sends, on Telegram and on the Computer page.
   - He never signs up for anything himself. A wish to join something goes to Frederik, who signs up with lil guy's address.
-- **His computer's history** (private): his chats with Frederik and the emails he sends and gets are kept on his computer. A **Computer** button on his page shows them, but only on a device that opened Frederik's private link (`/computer` on Telegram; `/newlink` makes a new one). Only the key's hash leaves the server; account mail stays hidden there too.
+- **His computer's history** (private): his chats with Frederik and the emails he sends and gets are kept on his computer. A **Computer** button on his page shows them, but only on a device that opened Frederik's private link (`/computer` on Telegram; `/newlink` makes a new one). In the home screen app, paste the link under About. Only the key's hash leaves the server; account mail stays hidden there too.
 - **Limits**: at most 12 messages to Frederik a day; `/pause` stops him instantly.
 
 Character sheet: `src/character.ts`. Places and moves: `src/world.ts`.
