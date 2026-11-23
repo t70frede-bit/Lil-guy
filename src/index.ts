@@ -8,6 +8,7 @@ import { kr } from "./workshop.js";
 import { checkComputer, leaveOnScreen, sitAtComputer, viaComputer } from "./computer.js";
 import { describe, shape } from "./needs.js";
 import { publish, publishAssets } from "./publish.js";
+import { checkMail, postOffice } from "./email.js";
 import { load, moodOf, note, remember, save, type State } from "./state.js";
 import { Telegram } from "./telegram.js";
 
@@ -19,6 +20,9 @@ const WORLD_URL = env.WORLD_URL || "https://lilguy.gokkehub.com";
 const WORLD_TOKEN = env.WORLD_TOKEN;
 const OWNER = env.TELEGRAM_OWNER_CHAT_ID ? Number(env.TELEGRAM_OWNER_CHAT_ID) : undefined;
 
+// His post office: the same Worker as his world page, with the same token.
+const office = postOffice(WORLD_URL, WORLD_TOKEN);
+
 const brain: Brain = env.ANTHROPIC_API_KEY && env.DRY_RUN !== "1" ? new ClaudeBrain(MODEL) : new RuleBrain();
 const tg = env.TELEGRAM_BOT_TOKEN ? new Telegram(env.TELEGRAM_BOT_TOKEN) : undefined;
 const s: State = load(DATA);
@@ -28,6 +32,7 @@ if (ensureWorkshop(s)) save(DATA, s);
 
 // Straight to Telegram. Lil guy's own messages go through his little computer (see `outbox` below).
 const telegramOut: Outbox = {
+  email: office?.send,
   async say(text) { await send(`💻 Lil guy: ${text}`); remember(s, "lil guy", text); },
   async inform(text) { await send(`Wishmaster: ${text}`); },
   async ask(wish, why) {
@@ -193,6 +198,7 @@ async function pollTelegram() {
 
 async function lifeLoop() {
   for (;;) {
+    await checkMail(s, office);
     await step(s, brain, outbox);
     await checkComputer(s, telegramOut, answerWaiting);
     save(DATA, s);

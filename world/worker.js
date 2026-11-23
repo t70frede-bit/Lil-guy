@@ -9,6 +9,15 @@
 //                It also sends his home screen icons (world/icons/*.png) as base64.
 //   GET  /manifest.webmanifest  the home screen app: name, colours and his face as the icon
 //   GET  /apple-touch-icon.png, /icon-192.png, /icon-512.png  the icons, from the last /assets push
+//
+// His email (lilguy@gokkehub.com), through Cloudflare Email Routing:
+//   email()          a new email for him: a copy goes to Frederik (FORWARD_TO), one waits here for his server.
+//   GET  /mail       his server picks up waiting emails (raw), plus who his computer may send to.
+//   POST /mail/done  his server got them: { ids }, they are deleted here.
+//   POST /mail/send  his server sends an email from his address: { to, subject, text }.
+//   All three need the same token as /state. Settings (set on the Worker, not in the repo):
+//   MAIL_ADDRESS (his address), FORWARD_TO (Frederik's inbox, a verified Email Routing address),
+//   MAIL_ALLOWED_TO (comma list of addresses he may write to; empty = anyone the EMAIL binding allows).
 import PAGE from "./index.html";
 import APP from "./app.js";
 import WORLD from "./world.json";
@@ -49,14 +58,85 @@ const json = (body, status = 200) => new Response(body, {
   headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" },
 });
 
+const MAX_MAIL_BYTES = 200 * 1024;
+const MAX_WAITING_MAIL = 50;
+const MAX_SENT_PER_DAY = 5;
+
+async function isOwner(req, env) {
+  const token = (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "");
+  const owner = await env.LILGUY.get("owner");
+  return !!owner && token.length >= 32 && owner === await sha256(token);
+}
+const allowedTo = env => (env.MAIL_ALLOWED_TO ?? "").split(",").map(a => a.trim().toLowerCase()).filter(Boolean);
+const mailAddress = env => (env.MAIL_ADDRESS ?? "lilguy@gokkehub.com").toLowerCase();
+
+async function handleMail(req, env, pathname) {
+  if (!env.MAIL_ADDRESS) return json('{"error":"no mail here yet"}', 404);
+  if (!await isOwner(req, env)) return json('{"error":"wrong token"}', 403);
+  if (pathname === "/mail" && req.method === "GET") {
+    const list = await env.LILGUY.list({ prefix: "mail:", limit: 10 });
+    const messages = [];
+    for (const k of list.keys) {
+      const v = await env.LILGUY.get(k.name);
+      if (!v) continue;
+      try { messages.push({ id: k.name, ...JSON.parse(v) }); } catch { await env.LILGUY.delete(k.name); }
+    }
+    return json(JSON.stringify({ address: mailAddress(env), canSendTo: env.EMAIL ? allowedTo(env) : [], messages }));
+  }
+  if (pathname === "/mail/done" && req.method === "POST") {
+    let ids;
+    try { ids = (await req.json()).ids; } catch { return json('{"error":"bad json"}', 400); }
+    if (!Array.isArray(ids)) return json('{"error":"ids needed"}', 400);
+    for (const id of ids.slice(0, 50)) if (typeof id === "string" && id.startsWith("mail:")) await env.LILGUY.delete(id);
+    return json('{"ok":true}');
+  }
+  if (pathname === "/mail/send" && req.method === "POST") {
+    if (!env.EMAIL) return json('{"error":"sending is not set up"}', 503);
+    let m;
+    try { m = await req.json(); } catch { return json('{"error":"bad json"}', 400); }
+    const to = String(m?.to ?? "").trim().toLowerCase();
+    const subject = String(m?.subject ?? "").replace(/[\r\n]+/g, " ").slice(0, 120);
+    const text = String(m?.text ?? "").slice(0, 2000);
+    if (!/^[^\s@<>()",;:]+@[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(to) || !text) return json('{"error":"bad email"}', 400);
+    const allowed = allowedTo(env);
+    if (allowed.length && !allowed.includes(to)) return json('{"error":"his computer cannot send to that address"}', 403);
+    const day = new Date().toISOString().slice(0, 10);
+    const count = Number(await env.LILGUY.get(`sent:${day}`) ?? 0);
+    if (count >= MAX_SENT_PER_DAY) return json('{"error":"enough emails today"}', 429);
+    await env.LILGUY.put(`sent:${day}`, String(count + 1), { expirationTtl: 3 * 86400 });
+    try {
+      await env.EMAIL.send({ from: { email: mailAddress(env), name: "Lil guy" }, to, subject: subject || "Hello from lil guy", text });
+    } catch (e) {
+      return json(JSON.stringify({ error: String(e?.message ?? e).slice(0, 200) }), 502);
+    }
+    return json('{"ok":true}');
+  }
+  return json('{"error":"method not allowed"}', 405);
+}
+
 async function sha256(text) {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
   return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, "0")).join("");
 }
 
 export default {
+  // A new email for lil guy. Frederik always gets a copy; his server picks up the other one.
+  async email(message, env) {
+    if (!env.MAIL_ADDRESS || message.to.toLowerCase() !== mailAddress(env)) { message.setReject("Unknown address"); return; }
+    let raw = "";
+    if (message.rawSize <= MAX_MAIL_BYTES) raw = await new Response(message.raw).text();
+    else raw = `Subject: ${(message.headers.get("subject") ?? "").slice(0, 200)}\r\nFrom: ${message.from}\r\n\r\n(This email was too big for his little computer.)`;
+    if (env.FORWARD_TO) { try { await message.forward(env.FORWARD_TO); } catch (e) { console.log("forward failed", String(e)); } }
+    const waiting = await env.LILGUY.list({ prefix: "mail:", limit: MAX_WAITING_MAIL });
+    if (waiting.keys.length >= MAX_WAITING_MAIL) return; // his server is not picking up; Frederik still has his copy
+    const id = `mail:${Date.now().toString().padStart(15, "0")}:${crypto.randomUUID().slice(0, 8)}`;
+    await env.LILGUY.put(id, JSON.stringify({ from: message.from, raw, at: new Date().toISOString() }), { expirationTtl: 30 * 86400 });
+  },
+
   async fetch(req, env) {
     const { pathname } = new URL(req.url);
+
+    if (pathname === "/mail" || pathname.startsWith("/mail/")) return handleMail(req, env, pathname);
 
     if (pathname === "/state") {
       if (req.method === "GET" || req.method === "HEAD") {

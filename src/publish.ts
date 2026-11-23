@@ -7,7 +7,7 @@ import { findObject } from "./world.js";
 import { publicSelf } from "./self.js";
 import { moodOf, type State } from "./state.js";
 
-const PRIVATE = /^(Frederik said|Said to Frederik)/i;
+const PRIVATE = /^(Frederik said|Said to Frederik|Email)/i;
 const MIN_GAP_MS = 90_000; // keeps us well inside Cloudflare's free daily write limit
 
 export function snapshot(s: State, tickSeconds: number) {

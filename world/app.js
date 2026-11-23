@@ -216,7 +216,7 @@
         cursor.visible = on || waiting;
       }
       g.userData.blinkScreen = t => { if (waiting) screenMat.color.set(Math.sin(t * 4) > 0 ? 0x4fd18b : 0x1f6b4a); };
-      return st => { on = st === 'on'; waiting = st === 'a message is waiting'; update(); };
+      return st => { on = st === 'on'; waiting = st === 'a message is waiting' || st === "you've got mail"; update(); };
     },
     door(g) {
       const pivot = new THREE.Group(); pivot.position.set(0, 0, -0.75); g.add(pivot);
