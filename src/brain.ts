@@ -12,6 +12,7 @@ import { needsWonder, openWonder } from "./wonder.js";
 import { GOAL_MIN_NIGHTS, goalNights, personalityBrief, selfText, type Reflection, type SelfPick } from "./self.js";
 import { FREE_THINGS } from "./wishmaster.js";
 import { activeProject, recentlyToldNo, estimate, kr, MAX_OUTPUT_PER_STEP, PROJECT_KINDS, priceOf, USD_TO_DKK, waitingProject, type FriendDesign, type Project } from "./workshop.js";
+import { SPOT_WORDS } from "./friends.js";
 
 const Decision = z.object({
   thought: z.string().describe("One short sentence in his own voice about what he is thinking."),
@@ -63,6 +64,7 @@ const Piece = z.object({
   text: z.string().describe("What you made in this work session, in your own words. At most about 300 words."),
   friend: z.object({
     name: z.string(), looks: z.string(), shape: z.string(), colour: z.string(), personality: z.string(), likes: z.string(),
+    home: z.string().optional().describe("Where in your world they will live, e.g. the windowsill, by the big stone, on the bookshelf, next to the plant."),
   }).optional().describe("Only for a friend project, on the last step: the finished friend design."),
 });
 
@@ -89,6 +91,7 @@ const MAKE_IT_YOURS = `Make it yours:
 - Put in at least one real thing from your own life: a secret you found, your plant, one of your theories, your goal, a moment you treasure.
 - Your naive ideas are welcome. Things do not have to be correct; they have to be yours.
 - A friend you design must fit in your world next to you: simple shapes, a face, tiny limbs, and something about it that comes from what you love or what you miss.
+- For a friend, say clearly what kind of creature it is, the colour of each part (body, wings, chest, feet, shell...) and where in your world it lives. The moment the design is finished, the friend moves in there, looking just like your words, so one design is enough.
 - On the last step, sign the finished piece at the end with your mark: a tiny drawing made of letters, and your catchphrase.`;
 
 function workshopText(s: State, model: string): string {
@@ -104,6 +107,8 @@ function workshopText(s: State, model: string): string {
     waiting ? `Waiting for Frederik: "${waiting.title}" (${waiting.status}). You cannot start another project until he answers.` : "",
     recentlyToldNo(s.projects) ? "Frederik said not now to your last project idea a little while ago. Give it some hours before you ask for a new one." : "",
     done.length ? `Projects you have finished: ${done.join(", ")}.` : "",
+    `When you finish designing a friend, they move into your world straight away, where you said they live. You do not need a second project or a wish to make them real.`,
+    s.friends?.length ? `Friends who live in your world: ${s.friends.map(f => `${f.name} (${f.kind}, ${SPOT_WORDS[f.spot]})`).join(", ")}. Visit them like anything else: go to them and use them.` : "",
   ].filter(Boolean).join("\n");
 }
 

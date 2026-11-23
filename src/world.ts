@@ -4,6 +4,7 @@
 
 import WORLD from "../world/world.json" with { type: "json" };
 import { clamp, type Needs } from "./needs.js";
+import { friendObjects, type Friend } from "./friends.js";
 
 export interface Action {
   verb: string; from?: string; to?: string; effect?: Partial<Needs>; line: string;
@@ -62,7 +63,7 @@ export function giftId(item: string): string {
 }
 
 /** Every place he can be next to: the house, outside, and everything built so far. */
-export function objectsOf(s: { built: Built[]; items?: string[] }): WorldObject[] {
+export function objectsOf(s: { built: Built[]; items?: string[]; friends?: Friend[] }): WorldObject[] {
   const out = [...BASE];
   for (const item of s.items ?? []) {
     const g = GIFTS.find(x => x.item === item);
@@ -74,12 +75,13 @@ export function objectsOf(s: { built: Built[]; items?: string[] }): WorldObject[
     if (def) for (const o of def.objects) out.push({ ...o, id: s.built.filter(x => x.buildable === def.id).indexOf(b) > 0 ? `${o.id}-${b.id}` : o.id, area: "outside", kind: def.kind, built: b.id });
     else out.push({ id: b.id, name: b.name, area: "outside", kind: CUSTOM.kind, state: "new", desc: CUSTOM.desc, actions: CUSTOM.actions, built: b.id });
   }
+  out.push(...friendObjects(s.friends));
   return out;
 }
 
 const words = (t: string) => t.toLowerCase().replace(/[^a-z0-9' -]/g, " ").trim();
 
-export function findObject(s: { built: Built[]; items?: string[] }, text: string | undefined): WorldObject | undefined {
+export function findObject(s: { built: Built[]; items?: string[]; friends?: Friend[] }, text: string | undefined): WorldObject | undefined {
   if (!text) return undefined;
   const t = words(text);
   const all = objectsOf(s);

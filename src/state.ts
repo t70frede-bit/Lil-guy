@@ -7,11 +7,12 @@ import type { Built, SecretState } from "./world.js";
 import type { Project } from "./workshop.js";
 import type { Mailbox } from "./computer.js";
 import type { Self } from "./self.js";
+import type { Friend } from "./friends.js";
 import { mood, type Mood } from "./needs.js";
 
 export interface DiaryEntry { at: string; text: string }
 /** A moment worth remembering, for the Highlights on his page. */
-export type HighlightKind = "first" | "wish" | "yes" | "no" | "built" | "mood" | "chat" | "gift" | "project" | "secret" | "wonder" | "theory" | "self" | "goal" | "ritual" | "oops";
+export type HighlightKind = "first" | "wish" | "yes" | "no" | "built" | "mood" | "chat" | "gift" | "project" | "secret" | "wonder" | "theory" | "self" | "goal" | "ritual" | "oops" | "friend";
 export interface Highlight { at: string; kind: HighlightKind; text: string }
 export interface PendingWish { id: string; item: string; need: string; reason: string; at: string; messageId?: number; looks?: string }
 
@@ -55,6 +56,8 @@ export interface State {
   secrets: Record<string, SecretState>;
   /** Today's "I wonder" goal. */
   wonder?: Wonder;
+  /** Friends he designed, who now live in his world. */
+  friends?: Friend[];
   /** His own projects from the workshop, each with a token budget Frederik approved. */
   projects: Project[];
   ownerChatId?: number;

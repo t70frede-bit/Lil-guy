@@ -11,6 +11,8 @@ export type ProjectKind = (typeof PROJECT_KINDS)[number];
 
 export interface FriendDesign {
   name: string; looks: string; shape: string; colour: string; personality: string; likes: string;
+  /** Where in his world they live (the windowsill, by the big stone...). */
+  home?: string;
 }
 export interface ProjectPiece { at: string; step: string; text: string; tokens: number }
 export type ProjectStatus = "waiting" | "working" | "needs more tokens" | "done" | "said no" | "stopped";
@@ -94,7 +96,9 @@ export function makeProject(p: Proposal, model: string): Project | string {
   const idea = (p.idea ?? "").trim().slice(0, 500);
   if (!title || !idea) return "A project needs a name and an idea.";
   const kind = (PROJECT_KINDS as readonly string[]).includes(p.kind ?? "") ? p.kind as ProjectKind : /friend|buddy|pal/i.test(title + idea) ? "friend" : "other";
-  const steps = (p.steps ?? []).map(x => String(x).trim().slice(0, 120)).filter(Boolean).slice(0, 8);
+  // Keep only real steps: sometimes bits of the form ("],", "need", "company") end up in the list.
+  const junk = new Set<string>(["need", "kind", "title", "idea", "steps", ...NEED_NAMES]);
+  const steps = (p.steps ?? []).map(x => String(x).trim().slice(0, 120)).filter(x => /[a-z]{2,}/i.test(x) && !junk.has(x.toLowerCase().replace(/[^a-z]/g, ""))).slice(0, 8);
   if (steps.length < 2) return "A project needs a plan of at least two steps.";
   const need = NEED_NAMES.find(n => (p.need ?? "").toLowerCase().includes(n)) ?? "";
   return {
