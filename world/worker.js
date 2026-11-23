@@ -11,12 +11,13 @@
 //   GET  /apple-touch-icon.png, /icon-192.png, /icon-512.png  the icons, from the last /assets push
 //
 // His email (lilguy@gokkehub.com), through Cloudflare Email Routing:
-//   email()          a new email for him: a copy goes to Frederik (FORWARD_TO), one waits here for his server.
+//   email()          a new email for him: it waits here for his server, which shows Frederik on Telegram.
+//                    If FORWARD_TO is set, a copy is also forwarded there (optional).
 //   GET  /mail       his server picks up waiting emails (raw), plus who his computer may send to.
 //   POST /mail/done  his server got them: { ids }, they are deleted here.
 //   POST /mail/send  his server sends an email from his address: { to, subject, text }.
 //   All three need the same token as /state. Settings (set on the Worker, not in the repo):
-//   MAIL_ADDRESS (his address), FORWARD_TO (Frederik's inbox, a verified Email Routing address),
+//   MAIL_ADDRESS (his address), FORWARD_TO (optional: an inbox to forward copies to, must be verified),
 //   MAIL_ALLOWED_TO (comma list of addresses he may write to; empty = anyone the EMAIL binding allows).
 import PAGE from "./index.html";
 import APP from "./app.js";

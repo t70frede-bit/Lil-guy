@@ -198,7 +198,7 @@ async function pollTelegram() {
 
 async function lifeLoop() {
   for (;;) {
-    await checkMail(s, office);
+    await checkMail(s, office, send);
     await step(s, brain, outbox);
     await checkComputer(s, telegramOut, answerWaiting);
     save(DATA, s);
