@@ -4,6 +4,7 @@
 
 import type { Action, WorldObject } from "./world.js";
 import type { FriendDesign, Project } from "./workshop.js";
+import type { FriendMind } from "./mind.js";
 
 export const FRIEND_KINDS = ["bird", "beetle", "bug", "bee", "butterfly", "snail", "mouse", "bunny", "cat", "dog", "frog", "fish", "blob"] as const;
 export type FriendKind = (typeof FRIEND_KINDS)[number];
@@ -44,6 +45,8 @@ export interface Friend {
   /** One sentence for the info card, from his own design. */
   desc: string;
   design: FriendDesign;
+  /** Their own mind, if lil guy gave them one and Frederik approved what it costs. */
+  mind?: FriendMind;
   /** The projects that made them (he can design the same friend again, and the newest look wins). */
   projects: string[];
   at: string;
@@ -215,7 +218,7 @@ export function friendActions(f: Friend): Action[] {
 export function friendObjects(friends: Friend[] | undefined): WorldObject[] {
   return (friends ?? []).map(f => ({
     id: f.id, name: f.name, area: FRIEND_SPOTS[f.spot]?.area ?? "home", kind: "friend", state: `lives ${SPOT_WORDS[f.spot]}`,
-    desc: `${f.desc} Your friend, who you designed yourself.`, actions: friendActions(f),
+    desc: `${f.desc} Your friend, who you designed yourself.${mindLine(f)}`, actions: friendActions(f),
   }));
 }
 
@@ -228,7 +231,7 @@ export function moveIn(s: { friends?: Friend[]; built: { buildable?: string }[];
   if (!f) return undefined;
   s.friends ??= [];
   const i = s.friends.findIndex(x => x.id === f.id);
-  if (i >= 0) { s.friends[i] = { ...f, projects: [...new Set([...s.friends[i].projects, p.id])], at: s.friends[i].at }; return { friend: s.friends[i], isNew: false }; }
+  if (i >= 0) { s.friends[i] = { ...f, ...(s.friends[i].mind ? { mind: s.friends[i].mind } : {}), projects: [...new Set([...s.friends[i].projects, p.id])], at: s.friends[i].at }; return { friend: s.friends[i], isNew: false }; }
   s.friends.push(f);
   return { friend: f, isNew: true };
 }
@@ -243,4 +246,13 @@ export function moveInFinished(s: { friends?: Friend[]; projects: Project[]; bui
     if (r?.isNew) moved.push(r.friend);
   }
   return moved;
+}
+
+function mindLine(f: Friend): string {
+  const m = f.mind;
+  if (!m) return " No mind of their own.";
+  if (m.status === "on") return ` Has a mind of their own (${m.like}).${m.said ? ` Last said to you: "${m.said.text}"` : ""}`;
+  if (m.status === "resting") return ` Has a mind of their own, but it is resting until next month.`;
+  if (m.status === "waiting") return " You gave them a mind; the wishmaster is asking Frederik about the cost.";
+  return " Frederik said not now to a mind for them.";
 }

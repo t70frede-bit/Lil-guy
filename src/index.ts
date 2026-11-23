@@ -1,7 +1,9 @@
 // Starts lil guy: his life loop every few minutes, and the Telegram wishmaster.
 
 import { ClaudeBrain, RuleBrain, type Brain } from "./brain.js";
-import { ensureWorkshop, heardFromFrederik, resolveMore, resolveProject, resolveWish, step, type Outbox } from "./lilguy.js";
+import { ensureWorkshop, heardFromFrederik, resolveMind, resolveMore, resolveProject, resolveWish, step, type Outbox } from "./lilguy.js";
+import { MIND_EVERY_MIN } from "./mind.js";
+import { SPOT_WORDS } from "./friends.js";
 import { kr } from "./workshop.js";
 import { checkComputer, leaveOnScreen, sitAtComputer, viaComputer } from "./computer.js";
 import { describe, shape } from "./needs.js";
@@ -51,6 +53,19 @@ const telegramOut: Outbox = {
     if (!tg || !s.ownerChatId) { console.log(`[more] ${msg}`); return; }
     await tg.send(s.ownerChatId, msg, [{ text: "Give more", data: `myes:${p.id}` }, { text: "Stop it", data: `mno:${p.id}` }]);
   },
+  async askMind(f, why) {
+    const m = f.mind!;
+    const msg = [
+      `Wishmaster: Lil guy decided that his friend ${f.name} (${f.kind}, ${SPOT_WORDS[f.spot]}) has a mind of their own.`,
+      `What it is like, in his words: ${m.like}`,
+      `With a mind, ${f.name} thinks by themselves about every ${MIND_EVERY_MIN} minutes while lil guy is awake, and now and then says something to him.`,
+      `Cost: up to ${m.estimate.tokens.toLocaleString("da-DK")} tokens a month, about ${kr(m.estimate.dkk)} a month. It can never use more than that in a month; if it runs out it rests until the next month.`,
+      `Why I am asking you: ${why} Nothing starts until you say yes.`,
+    ].join("\n\n");
+    if (!tg || !s.ownerChatId) { console.log(`[mind] ${msg}`); return; }
+    const sent = await tg.send(s.ownerChatId, msg, [{ text: "Approve", data: `fyes:${f.id}` }, { text: "Not now", data: `fno:${f.id}` }]);
+    m.messageId = sent.message_id;
+  },
 };
 
 /** His messages to Frederik are typed on his little computer, so you can see him do it in his world. */
@@ -76,6 +91,7 @@ function status(): string {
     `Needs: ${describe(s.needs)}.`,
     `Owns: ${s.items.join(", ") || "nothing yet"}.`,
     `Waiting wishes: ${s.pending.map(p => p.item).join(", ") || "none"}.`,
+    `Friends: ${(s.friends ?? []).map(f => `${f.name} (${f.mind?.status === "on" ? `own mind, ${f.mind.used.toLocaleString("da-DK")} of ${f.mind.monthly.toLocaleString("da-DK")} tokens this month` : f.mind?.status === "resting" ? "own mind, resting until next month" : f.mind?.status === "waiting" ? "waiting for your yes on a mind" : "no mind"})`).join(", ") || "none yet"}.`,
     `Projects: ${s.projects.filter(p => p.status === "working" || p.status === "waiting" || p.status === "needs more tokens").map(p => `${p.title} (${p.status})`).join(", ") || "none going"}.`,
   ].join("\n");
 }
@@ -143,6 +159,15 @@ async function pollTelegram() {
         const cb = u.callback_query;
         if (cb?.data && cb.message && cb.message.chat.id === s.ownerChatId) {
           const [verb, id] = cb.data.split(":");
+          if (verb === "fyes" || verb === "fno") {
+            const yes = verb === "fyes";
+            const f = resolveMind(s, id, yes);
+            await tg.answer(cb.id, f ? (yes ? "Approved" : "Okay") : "Already handled");
+            await tg.clearButtons(cb.message.chat.id, cb.message.message_id).catch(() => {});
+            if (f) await send(yes ? `Wishmaster: Approved. ${f.name} has a mind of their own now, with up to ${f.mind!.monthly.toLocaleString("da-DK")} tokens a month.` : `Wishmaster: Told him not now. ${f.name} stays a friend without a mind for now.`);
+            save(DATA, s);
+            continue;
+          }
           if (verb === "pyes" || verb === "pno" || verb === "myes" || verb === "mno") {
             const yes = verb.endsWith("yes");
             const p = verb[0] === "p" ? resolveProject(s, id, yes) : resolveMore(s, id, yes);

@@ -12,13 +12,14 @@ import { needsWonder, openWonder } from "./wonder.js";
 import { GOAL_MIN_NIGHTS, goalNights, personalityBrief, selfText, type Reflection, type SelfPick } from "./self.js";
 import { FREE_THINGS } from "./wishmaster.js";
 import { activeProject, recentlyToldNo, estimate, kr, MAX_OUTPUT_PER_STEP, PROJECT_KINDS, priceOf, USD_TO_DKK, waitingProject, type FriendDesign, type Project } from "./workshop.js";
-import { SPOT_WORDS } from "./friends.js";
+import { SPOT_WORDS, type Friend } from "./friends.js";
+import { mindEstimate, MIND_EVERY_MIN, MIND_OUTPUT } from "./mind.js";
 
 const Decision = z.object({
   thought: z.string().describe("One short sentence in his own voice about what he is thinking."),
   moves: z.array(z.object({
     type: z.enum(MOVE_TYPES),
-    target: z.string().optional().describe("For go and use: the name of a thing. For look_closer or try: what."),
+    target: z.string().optional().describe("For go and use: the name of a thing. For look_closer or try: what. For give_friend_mind: the friend's name."),
     action: z.string().optional().describe("For use: one of the things you can do with it, exactly as listed."),
     item: z.string().optional().describe("For wish: the thing he wants."),
     title: z.string().optional().describe("For propose_project: the project's name, e.g. \"Design my friend Pip\"."),
@@ -26,7 +27,7 @@ const Decision = z.object({
     need: z.string().optional().describe("For wish (if one fits) and propose_project: which need it is for (energy, curiosity, company, feisty, fulfilled)."),
     reason: z.string().optional().describe("For wish: why you need it, in your own words."),
     looks: z.string().optional().describe("For a wish for a place to be built: how you picture it, in one sentence (its colour, its shape, one funny detail)."),
-    text: z.string().optional().describe("For message: what he says to Frederik."),
+    text: z.string().optional().describe("For message: what he says to Frederik. For give_friend_mind: what their mind is like, in one sentence."),
     kind: z.enum(PROJECT_KINDS).optional().describe("For propose_project: what sort of project."),
     steps: z.array(z.string()).optional().describe("For propose_project: the plan, 2 to 8 short steps. Each step is one work session."),
   })).min(1).max(3),
@@ -65,10 +66,17 @@ const Piece = z.object({
   friend: z.object({
     name: z.string(), looks: z.string(), shape: z.string(), colour: z.string(), personality: z.string(), likes: z.string(),
     home: z.string().optional().describe("Where in your world they will live, e.g. the windowsill, by the big stone, on the bookshelf, next to the plant."),
+    mind: z.string().optional().describe("Only if you decide this friend has a mind of their own (thinks, feels and talks to you by themselves): what their mind is like, in one sentence. Leave it out for a friend without a mind. You decide."),
   }).optional().describe("Only for a friend project, on the last step: the finished friend design."),
 });
 
 export interface WorkResult { text: string; friend?: FriendDesign; tokens: number; dkk: number; failed?: boolean }
+export interface MindResult { thought: string; say?: string; tokens: number; dkk: number }
+
+const Mind = z.object({
+  thought: z.string().describe("Your own private thought right now, one short sentence."),
+  say: z.string().optional().describe("Only now and then: something short you say to lil guy (he hears it if he is near). Leave it out most of the time."),
+});
 
 export interface Brain {
   /** The model used, for working out what projects will cost. */
@@ -82,6 +90,8 @@ export interface Brain {
   pickSelf(s: State): Promise<SelfPick>;
   /** Once a night while he sleeps: he thinks about his day, himself and his goal in life. */
   reflect(s: State): Promise<Reflection>;
+  /** A friend with their own mind thinks for a moment. `remaining` is this month's approved tokens left. */
+  friendThink?(s: State, f: Friend, remaining: number): Promise<MindResult | "over budget">;
 }
 
 /** So what he makes feels like his, not like anyone's. */
@@ -91,6 +101,7 @@ const MAKE_IT_YOURS = `Make it yours:
 - Put in at least one real thing from your own life: a secret you found, your plant, one of your theories, your goal, a moment you treasure.
 - Your naive ideas are welcome. Things do not have to be correct; they have to be yours.
 - A friend you design must fit in your world next to you: simple shapes, a face, tiny limbs, and something about it that comes from what you love or what you miss.
+- For a friend, you also decide whether they have a mind of their own (they think, feel and talk to you by themselves) or are a friend without one. If they have one, say in mind what it is like. A mind costs Frederik a little every month, so the wishmaster asks him about that cost.
 - For a friend, say clearly what kind of creature it is, the colour of each part (body, wings, chest, feet, shell...) and where in your world it lives. The moment the design is finished, the friend moves in there, looking just like your words, so one design is enough.
 - On the last step, sign the finished piece at the end with your mark: a tiny drawing made of letters, and your catchphrase.`;
 
@@ -108,7 +119,9 @@ function workshopText(s: State, model: string): string {
     recentlyToldNo(s.projects) ? "Frederik said not now to your last project idea a little while ago. Give it some hours before you ask for a new one." : "",
     done.length ? `Projects you have finished: ${done.join(", ")}.` : "",
     `When you finish designing a friend, they move into your world straight away, where you said they live. You do not need a second project or a wish to make them real.`,
-    s.friends?.length ? `Friends who live in your world: ${s.friends.map(f => `${f.name} (${f.kind}, ${SPOT_WORDS[f.spot]})`).join(", ")}. Visit them like anything else: go to them and use them.` : "",
+    s.friends?.length ? `Friends who live in your world: ${s.friends.map(f => `${f.name} (${f.kind}, ${SPOT_WORDS[f.spot]}, ${f.mind?.status === "on" || f.mind?.status === "resting" ? "with a mind of their own" : f.mind?.status === "waiting" ? "waiting to hear about a mind" : "no mind of their own"})`).join(", ")}. Visit them like anything else: go to them and use them.` : "",
+    s.friends?.some(f => !f.mind || f.mind.status === "said no") ? `You decide whether a friend has a mind of their own. If you want one of them to, use give_friend_mind with the friend in target and what their mind is like in text. It costs about ${kr(mindEstimate(model).dkk)} a month, and the wishmaster asks Frederik about the cost first.` : "",
+    ...(s.friends ?? []).filter(f => f.mind?.said && Date.now() - Date.parse(f.mind.said.at) < 3 * 3600_000).map(f => `${f.name} said to you recently: "${f.mind!.said!.text}"`),
   ].filter(Boolean).join("\n");
 }
 
@@ -297,6 +310,55 @@ export class ClaudeBrain implements Brain {
     if (res.stop_reason === "refusal" || !res.parsed_output) return { text: "", tokens, dkk, failed: true };
     return { ...res.parsed_output, tokens, dkk };
   }
+  async friendThink(s: State, f: Friend, remaining: number): Promise<MindResult | "over budget"> {
+    const request = {
+      model: this.model,
+      output_config: { effort: "low" as const, format: zodOutputFormat(Mind) },
+      system: [{ type: "text" as const, text: friendPersona(f), cache_control: { type: "ephemeral" as const } }],
+      messages: [{ role: "user" as const, content: friendSituation(s, f) }],
+    };
+    // Hard cap, like projects: count what it reads, and only let it write what is left of the month.
+    const counted = await this.client.messages.countTokens({ model: request.model, system: request.system, messages: request.messages, output_config: { format: request.output_config.format } });
+    const input = Math.ceil(counted.input_tokens * 1.05);
+    const maxOut = Math.min(MIND_OUTPUT, remaining - input);
+    if (maxOut < 120) return "over budget";
+    const res = await this.client.messages.parse({ ...request, max_tokens: maxOut });
+    const u = res.usage;
+    const used = u.input_tokens + (u.cache_creation_input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0);
+    const [pin, pout] = priceOf(this.model);
+    const dkk = ((used * pin + u.output_tokens * pout) / 1e6) * USD_TO_DKK;
+    if (res.stop_reason === "refusal" || !res.parsed_output) return { thought: "", tokens: used + u.output_tokens, dkk };
+    return { ...res.parsed_output, tokens: used + u.output_tokens, dkk };
+  }
+}
+
+/** Who a friend with a mind is: everything lil guy decided about them. */
+function friendPersona(f: Friend): string {
+  const d = f.design;
+  return [
+    `You are ${f.name}, a small ${f.kind} who lives ${SPOT_WORDS[f.spot]} in lil guy's tiny world. Lil guy is a small round creature who designed you himself in his workshop.`,
+    `How you look: ${d.looks}. Shape: ${d.shape}. Colour: ${d.colour}.`,
+    `Your personality: ${d.personality}. You like: ${d.likes}.`,
+    `Your mind, as lil guy pictured it: ${f.mind?.like ?? "simple and kind"}.`,
+    `You are simple and small, like an animal in a picture book. Think in short, plain sentences, in your own little voice. You never talk to Frederik or anyone outside this world, only to lil guy. Say something to lil guy only now and then, when you really have something to say.`,
+  ].join("\n");
+}
+
+/** What a friend can notice: the time, where lil guy is and what he did lately. */
+function friendSituation(s: State, f: Friend): string {
+  const here = findObject(s, f.id)?.area;
+  const him = findObject(s, s.place);
+  const near = him?.area === here;
+  const hour = Number(new Date().toLocaleString("en-GB", { timeZone: "Europe/Copenhagen", hour: "2-digit", hour12: false }));
+  const recent = s.diary.filter(d => !/^(Frederik said|Said to Frederik|Thought: )/.test(d.text)).slice(-6).map(d => `- ${d.text.slice(0, 160)}`).join("\n");
+  return [
+    `It is ${hour < 6 || hour >= 21 ? "night" : hour < 11 ? "morning" : hour < 17 ? "the afternoon" : "evening"}. You think every ${MIND_EVERY_MIN} minutes or so.`,
+    near ? `Lil guy is ${him?.id === f.id ? "right next to you" : `nearby, at the ${him?.name ?? s.place}`}.` : `Lil guy is not near you; he is ${him?.area === "outside" ? "outside" : "in his house"}, at the ${him?.name ?? s.place}.`,
+    `What lil guy did lately:\n${recent || "- not much"}`,
+    f.mind?.thought ? `Your last thought: ${f.mind.thought}` : "",
+    f.mind?.said ? `The last thing you said to him: "${f.mind.said.text}"` : "",
+    `What are you thinking now? Only if you have something to say to him, put it in say.`,
+  ].filter(Boolean).join("\n\n");
 }
 
 /** A brain with no AI, for testing and for running without an API key. */
@@ -374,5 +436,8 @@ export class RuleBrain implements Brain {
   async work(_s: State, p: Project, step: string, last: boolean): Promise<WorkResult | "over budget"> {
     const friend = last && p.kind === "friend" ? { name: "Bobble", looks: "a small round puff", shape: "ball", colour: "light blue", personality: "shy but brave", likes: "stones and bubbles" } : undefined;
     return { text: `I worked on ${step}. It is getting good.`, ...(friend ? { friend } : {}), tokens: 0, dkk: 0 };
+  }
+  async friendThink(_s: State, f: Friend): Promise<MindResult> {
+    return { thought: `${f.name} is thinking about the sky.`, say: "Hello, lil guy!", tokens: 2000, dkk: 0.001 };
   }
 }

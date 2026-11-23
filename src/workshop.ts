@@ -13,6 +13,8 @@ export interface FriendDesign {
   name: string; looks: string; shape: string; colour: string; personality: string; likes: string;
   /** Where in his world they live (the windowsill, by the big stone...). */
   home?: string;
+  /** Only if lil guy wants them to have their own mind: what it is like. */
+  mind?: string;
 }
 export interface ProjectPiece { at: string; step: string; text: string; tokens: number }
 export type ProjectStatus = "waiting" | "working" | "needs more tokens" | "done" | "said no" | "stopped";
