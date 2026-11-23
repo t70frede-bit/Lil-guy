@@ -40,6 +40,7 @@ export function snapshot(s: State, tickSeconds: number) {
       latest: p.pieces.length ? p.pieces[p.pieces.length - 1].text.slice(0, 400) : "",
       friend: p.friend, at: p.at,
     })),
+    friends: (s.friends ?? []).map(f => ({ id: f.id, name: f.name, kind: f.kind, spot: f.spot, look: f.look, desc: f.desc, at: f.at })),
     secrets: s.secrets ?? {},
     wonder: s.wonder ? { day: s.wonder.day, text: s.wonder.text, answer: s.wonder.answer } : null,
     self: publicSelf(s),

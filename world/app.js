@@ -519,6 +519,253 @@
     });
   }
 
+  // ---------- Friends he designed ----------
+  // A finished friend design moves in: built from his own words (what kind of creature, the colour of each
+  // part, the little extras he mentioned), in the spot where he said they live.
+  const FRIEND_HEX = { 'puddle blue': 0x5fa8f5, 'sky blue': 0x6cc4ff, 'light blue': 0x9fd3ff, 'baby blue': 0xa8d8ff, 'dark blue': 0x3b6fc0, navy: 0x34518f,
+    'warm brown': 0xb98257, chocolate: 0x7a4e32, tan: 0xd2b48c, 'pale grey': 0xe4e4ea, black: 0x2f2a38, charcoal: 0x4a4552, 'leaf green': 0x6cc46a };
+  function friendColour(words, fallback) {
+    if (!words) return fallback;
+    const w = String(words).toLowerCase();
+    if (FRIEND_HEX[w] !== undefined) return FRIEND_HEX[w];
+    const c = colourFromWords(w); return c ? c.getHex() : fallback;
+  }
+  const darker = (hex, k) => new THREE.Color(hex).multiplyScalar(k === undefined ? 0.7 : k).getHex();
+  // Where each spot is, where he stands to visit, and how a second friend in the same spot shuffles over.
+  const FRIEND_SPOT = {
+    windowsill: { pos: [1.0, HOUSE.z0 + 0.3], y: 1.06, stand: [1.0, -1.5], step: [0.5, 0], area: 'home', words: 'on the windowsill' },
+    stone: { pos: [7.0, 4.2], y: 0, stand: [6.2, 4.7], step: [0.55, 0.2], area: 'outside', words: 'by the big stone' },
+    shelf: { pos: [-1.0, HOUSE.z0 + 0.45], y: 2.62, stand: [-1.0, -1.3], step: [0.4, 0], area: 'home', words: 'on the bookshelf' },
+    bed: { pos: [-3.4, -0.3], y: 0, stand: [-2.4, 0.2], step: [0.45, 0], area: 'home', words: 'by the sock bed' },
+    plant: { pos: [0.0, -2.2], y: 0, stand: [0.4, -1.3], step: [-0.45, 0], area: 'home', words: 'next to the little plant' },
+    rug: { pos: [0.8, 0.9], y: 0.05, stand: [0.2, 1.4], step: [0.5, 0], area: 'home', words: 'on the rug' },
+    field: { pos: [8.6, 1.9], y: 0, stand: [8.6, 2.7], step: [0.6, 0], area: 'outside', words: 'out in the field' },
+  };
+  function friendPlace(spot, i) {
+    let sp = FRIEND_SPOT[spot];
+    if (spot === 'pond') {
+      const b = (S.built || []).find(x => x.buildable === 'pond');
+      const p = b ? (world.plots[b.plot % world.plots.length] || [10, -3.5]) : null;
+      sp = p ? { pos: [p[0] + 1.2, p[1] + (p[1] < 0 ? 2.1 : -2.1)], y: 0, stand: [p[0] + 0.3, p[1] + (p[1] < 0 ? 2.6 : -2.6)], step: [0.55, 0], area: 'outside', words: 'by the little pond' } : FRIEND_SPOT.field;
+    }
+    sp = sp || FRIEND_SPOT.rug;
+    return { pos: [sp.pos[0] + sp.step[0] * i, sp.pos[1] + sp.step[1] * i], y: sp.y, stand: [sp.stand[0] + sp.step[0] * i, sp.stand[1] + sp.step[1] * i], area: sp.area, words: sp.words };
+  }
+  const SOUND_OF = { bird: 'sing', beetle: 'click', bug: 'chirp', bee: 'buzz', frog: 'croak', cat: 'purr', dog: 'bark', mouse: 'squeak' };
+  function friendVerbs(f) {
+    const n = f.name;
+    return [{ verb: 'say hello to ' + n }, { verb: 'listen to ' + n }, { verb: 'sit with ' + n }, { verb: 'show ' + n + ' something' }];
+  }
+  // A point on the front of a sphere, so eyes and beaks sit on the surface.
+  const front = (r, x, y) => Math.sqrt(Math.max(0.01, r * r - x * x - y * y));
+
+  let noteTex = null;
+  function noteTexture() {
+    if (noteTex) return noteTex;
+    const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d');
+    x.fillStyle = '#2a2433'; x.font = '700 54px sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('♪', 32, 34);
+    return (noteTex = new THREE.CanvasTexture(c));
+  }
+
+  builders.friend = function (g, def) {
+    const f = def.friend, L = f.look || {}, kind = f.kind || 'blob', parts = L.parts || [];
+    const has = p => parts.indexOf(p) >= 0;
+    const s = 0.42 * (L.size || 0.6);
+    const holder = new THREE.Group(); holder.scale.setScalar(s); g.add(holder);
+    const pivot = new THREE.Group(); holder.add(pivot);
+    const ink = 0x2a2433;
+    const bodyC = friendColour(L.body, 0xf6e3b4);
+    const crawly = kind === 'beetle' || kind === 'bug' || kind === 'snail';
+    const by = crawly ? 0.6 : 1.0;
+    const body = mesh(sph(1, 28, 20), toon(bodyC), 0, by, 0, pivot);
+    if (kind === 'bird') body.scale.set(1, 0.95, 1.05);
+    if (crawly) body.scale.set(0.95, 0.72, 1.15);
+    // the face lives on the body, or on a little head in front for crawly ones
+    let fy = by + 0.25, fr = 1, fz0 = 0, fc = by;
+    if (crawly) {
+      const headC = L.shell && L.shell !== L.body ? darker(bodyC, 0.85) : darker(bodyC, 0.8);
+      mesh(sph(0.55, 20, 14), toon(headC), 0, 0.55, 1.05, pivot);
+      fr = 0.55; fz0 = 1.05; fc = 0.55; fy = 0.63;
+      // the line down the middle of the shell, and spots if he gave it any
+      const seam = mesh(box(0.05, 0.05, 1.7), basic(darker(bodyC, 0.55)), 0, by + 0.7, -0.05, pivot); seam.scale.y = 0.6;
+      // six tiny legs
+      const legC = friendColour(L.feet, darker(bodyC, 0.45));
+      for (const side of [-1, 1]) for (let i = 0; i < 3; i++) {
+        const leg = mesh(cyl(0.05, 0.04, 0.45, 6), toon(legC), side * 0.98, 0.16, -0.55 + i * 0.5, pivot);
+        leg.rotation.z = side * 1.25; leg.userData.leg = side * (i % 2 ? 1 : -1);
+      }
+    }
+    if (L.belly) { const b = mesh(sph(0.72, 22, 16), toon(friendColour(L.belly, 0xffffff)), 0, by - 0.18, 0.42, pivot); b.scale.set(1, 1, 0.62); }
+    // eyes: big and dark with a shine, like his own
+    const eyes = [];
+    for (const side of [-1, 1]) {
+      const ex = side * 0.34 * fr, ey = fy - fc;
+      const ez = fz0 + front(fr, ex, ey) - 0.02;
+      const e = mesh(sph(0.17 * Math.max(fr, 0.75), 12, 10), basic(ink), ex, fy, ez, pivot);
+      mesh(sph(0.055 * Math.max(fr, 0.75), 8, 6), basic(0xffffff), ex + 0.05, fy + 0.06, ez + 0.12, pivot);
+      eyes.push(e);
+    }
+    if (has('cheeks') || kind !== 'bird') for (const side of [-1, 1]) {
+      const cx = side * 0.55 * fr, cy = fy - fc - 0.22 * fr;
+      const ch = mesh(sph(0.11 * fr / (fr < 1 ? 0.8 : 1), 8, 6), basic(0xff9aa6), cx, fc + cy, fz0 + front(fr, cx, cy) - 0.03, pivot); ch.scale.z = 0.3;
+    }
+    let beak = null;
+    if (kind === 'bird' || L.beak) {
+      beak = mesh(new THREE.ConeGeometry(0.15, 0.36, 8), toon(friendColour(L.beak, 0xf0a04b)), 0, fy - 0.2, front(1, 0, fy - 0.2 - by) + 0.1, pivot);
+      beak.rotation.x = Math.PI / 2;
+    } else {
+      const m = mesh(new THREE.TorusGeometry(0.12 * fr, 0.03, 6, 12, Math.PI), basic(ink), 0, fy - 0.24 * fr, fz0 + front(fr, 0, fy - 0.24 * fr - fc) + 0.01, pivot);
+      m.rotation.z = Math.PI;
+    }
+    // wings, in the colour he gave them
+    const wings = [];
+    if (L.wings || kind === 'bird' || kind === 'bee' || kind === 'butterfly') {
+      const wc = friendColour(L.wings, darker(bodyC, 0.8));
+      for (const side of [-1, 1]) {
+        const w = new THREE.Group(); w.position.set(side * 0.88, by + 0.15, -0.05); pivot.add(w);
+        const wm = mesh(sph(0.55, 16, 12), toon(wc), side * 0.08, -0.25, 0, w);
+        if (kind === 'butterfly') wm.scale.set(0.12, 1.3, 1.2); else wm.scale.set(0.3, 0.85, 1.0);
+        w.rotation.z = side * 0.25; w.userData.side = side; wings.push(w);
+      }
+    }
+    if (kind === 'bird') {
+      const tail = mesh(new THREE.ConeGeometry(0.32, 0.8, 4), toon(friendColour(L.wings, darker(bodyC, 0.8))), 0, by + 0.05, -1.1, pivot);
+      tail.rotation.x = -Math.PI / 2 - 0.6;
+      const fc2 = friendColour(L.feet, 0xf0a04b);
+      for (const side of [-1, 1]) {
+        mesh(cyl(0.045, 0.045, 0.3, 6), toon(fc2), side * 0.32, 0.12, 0.1, pivot);
+        const foot = mesh(sph(0.16, 10, 8), toon(fc2), side * 0.32, 0.03, 0.25, pivot); foot.scale.set(0.9, 0.3, 1.4);
+      }
+    } else if (!crawly && kind !== 'fish') {
+      const fc2 = friendColour(L.feet, darker(bodyC, 0.75));
+      for (const side of [-1, 1]) { const foot = mesh(sph(0.2, 10, 8), toon(fc2), side * 0.42, 0.08, 0.35, pivot); foot.scale.set(1, 0.5, 1.3); }
+    }
+    if (has('tail') && kind !== 'bird') { const t2 = mesh(cyl(0.06, 0.03, 0.7, 6), toon(darker(bodyC, 0.85)), 0, by - 0.3, -1.1, pivot); t2.rotation.x = 1.0; }
+    if (has('arms') && !wings.length) for (const side of [-1, 1]) mesh(sph(0.17, 10, 8), toon(bodyC), side * 1.0, by - 0.15, 0.25, pivot);
+    if (has('antennae') || kind === 'bee' || kind === 'butterfly' || kind === 'beetle') {
+      const top = crawly ? [0.55 + 0.5, 1.15] : [by + 0.95, 0.15];
+      for (const side of [-1, 1]) {
+        const a = new THREE.Group(); a.position.set(side * 0.18, top[0], top[1]); pivot.add(a);
+        const stalk = mesh(cyl(0.025, 0.025, 0.55, 6), basic(ink), 0, 0.27, 0, a); void stalk;
+        mesh(sph(0.08, 8, 6), toon(friendColour(L.body, ink)), 0, 0.56, 0, a);
+        a.rotation.z = -side * 0.35; a.rotation.x = 0.3; a.userData.antenna = side;
+      }
+    }
+    if (has('crest')) [-0.12, 0, 0.12].forEach((x, i) => { const c = mesh(new THREE.ConeGeometry(0.08, 0.32, 6), toon(darker(bodyC, 0.8)), x, by + 1.0, -0.1 + i * 0.05, pivot); c.rotation.z = -x * 2; });
+    if (kind === 'mouse' || kind === 'cat' || kind === 'bunny' || (has('ears') && kind !== 'bird')) for (const side of [-1, 1]) {
+      if (kind === 'cat') { const e = mesh(new THREE.ConeGeometry(0.25, 0.45, 4), toon(bodyC), side * 0.5, by + 0.9, 0, pivot); e.rotation.z = -side * 0.3; }
+      else if (kind === 'bunny') { const e = mesh(sph(0.2, 10, 8), toon(bodyC), side * 0.3, by + 1.25, -0.1, pivot); e.scale.set(0.8, 2.6, 0.6); e.rotation.z = -side * 0.15; }
+      else { const e = mesh(cyl(0.34, 0.34, 0.08, 16), toon(bodyC), side * 0.62, by + 0.75, -0.1, pivot); e.rotation.x = Math.PI / 2; }
+    }
+    if (has('clover')) {
+      const cy = by - 0.35, cz = front(1, 0, -0.35) + 0.04;
+      [[0.08, 0], [-0.08, 0], [0, 0.08], [0, -0.08]].forEach(([x, y]) => mesh(new THREE.CircleGeometry(0.085, 12), basic(0x2f8f5b), x, cy + y, cz + (L.belly ? 0.02 : 0), pivot));
+    }
+    if (has('spots')) [[0.3, 0.6], [-0.35, 0.4], [0.05, 0.85], [-0.1, 0.15], [0.45, 0.1]].forEach(([x, z]) => {
+      const d = mesh(sph(0.11, 8, 6), basic(crawly ? 0xfff6dc : darker(bodyC, 0.6)), x, by + (crawly ? 0.68 : 0.9) - Math.abs(x) * 0.25, -z * 0.8, pivot); d.scale.y = 0.35;
+    });
+    if (has('hat')) { mesh(cyl(0.45, 0.45, 0.06, 16), toon(0xc2473d), 0, by + 0.92, 0, pivot); mesh(cyl(0.3, 0.32, 0.3, 16), toon(0xc2473d), 0, by + 1.08, 0, pivot); }
+    if (has('scarf')) { const sc = mesh(new THREE.TorusGeometry(0.62, 0.12, 8, 20), toon(0xc2473d), 0, by - 0.45, 0, pivot); sc.rotation.x = Math.PI / 2; }
+    // music notes when they sing (or click, or buzz)
+    const notes = [0, 1].map(() => { const n = new THREE.Sprite(new THREE.SpriteMaterial({ map: noteTexture(), transparent: true, depthWrite: false })); n.scale.setScalar(0.55); n.visible = false; holder.add(n); return n; });
+    g.userData.friend = { f, pivot, wings, eyes, notes, beak, holder, by, sing: 0, t: Math.random() * 3, hop: 0, turn: 0, wander: [0, 0], to: null, nextSong: 20 + Math.random() * 40 };
+    return () => {};
+  };
+
+  function friendTick(th, dt, t) {
+    const u = th.group.userData.friend; if (!u) return;
+    const kind = u.f.kind;
+    const sleepy = isNight;
+    // eyes close at night, and blink by day
+    const blink = sleepy ? 0.15 : (Math.sin(t * 0.9 + u.nextSong) > 0.985 ? 0.15 : 1);
+    u.eyes.forEach(e => { e.scale.y = lerp(e.scale.y, blink, 0.3); });
+    if (reduce) { u.notes.forEach(n => { n.visible = false; }); return; }
+    // now and then they sing by themselves (by day), and always when he listens
+    u.nextSong -= dt;
+    if (u.nextSong < 0 && !sleepy) { u.sing = 3; u.nextSong = 30 + Math.random() * 60; }
+    if (u.sing > 0) u.sing -= dt;
+    const singing = u.sing > 0;
+    u.notes.forEach((n, i) => {
+      const p = ((t * 0.6 + i * 0.5) % 1);
+      n.visible = singing; n.position.set(0.6 + i * 0.4 + p * 0.5, u.by + 1.2 + p * 1.6, 0.3); n.material.opacity = 1 - p;
+    });
+    u.wings.forEach(w => { w.rotation.z = w.userData.side * (0.25 + (singing ? Math.abs(Math.sin(t * 18)) * 0.9 : sleepy ? 0 : Math.max(0, Math.sin(t * 2.3)) * 0.12)); });
+    u.pivot.scale.y = lerp(u.pivot.scale.y, singing ? 1.08 + Math.sin(t * 20) * 0.04 : sleepy ? 0.92 : 1, 0.2);
+    u.pivot.traverse(o => { if (o.userData.antenna) o.rotation.z = -o.userData.antenna * (0.35 + Math.sin(t * 4 + o.userData.antenna) * 0.15); if (o.userData.leg) o.rotation.x = Math.sin(t * 14) * 0.4 * o.userData.leg * (u.to ? 1 : 0); });
+    if (sleepy) { u.pivot.position.y = lerp(u.pivot.position.y, 0, 0.1); return; }
+    u.t -= dt;
+    if (kind === 'beetle' || kind === 'bug' || kind === 'snail') {
+      // potter about a little, then stop and look around
+      if (u.t < 0) { u.t = 2 + Math.random() * 4; u.to = Math.random() < 0.6 ? [(Math.random() - 0.5) * 1.6, (Math.random() - 0.5) * 0.8] : null; }
+      if (u.to) {
+        const dx = u.to[0] - u.wander[0], dz = u.to[1] - u.wander[1], d = Math.hypot(dx, dz);
+        if (d < 0.03) u.to = null;
+        else { const sp = Math.min(d, dt * (kind === 'snail' ? 0.08 : 0.35)); u.wander = [u.wander[0] + dx / d * sp, u.wander[1] + dz / d * sp]; u.pivot.rotation.y = lerp(u.pivot.rotation.y, Math.atan2(dx, dz), 0.15); }
+      } else u.pivot.rotation.y = lerp(u.pivot.rotation.y, 0, 0.05);
+      u.holder.position.set(u.wander[0], 0, u.wander[1]);
+      return;
+    }
+    // birds and the rest: a little hop, a head turn, then still again
+    if (u.t < 0) { u.t = 1.5 + Math.random() * 3.5; if (Math.random() < 0.45) u.hop = 1; else u.turn = (Math.random() - 0.5) * 1.2; }
+    if (u.hop > 0) { u.hop = Math.max(0, u.hop - dt * 3); u.pivot.position.y = Math.sin((1 - u.hop) * Math.PI) * 0.45; }
+    u.pivot.rotation.y = lerp(u.pivot.rotation.y, u.turn, 0.06);
+    if (kind !== 'bird') u.pivot.position.y += Math.sin(t * 2) * 0.002;
+  }
+
+  function syncFriends() {
+    const count = {};
+    (S.friends || []).forEach(f => {
+      const i = count[f.spot] = (count[f.spot] || 0) + 1;
+      const sp = friendPlace(f.spot, i - 1);
+      const key = JSON.stringify([f.look, f.kind, f.spot, i]);
+      let th = things[f.id];
+      if (th && th.friendKey !== key) { scene.remove(th.group); delete things[f.id]; th = null; } // he redesigned them
+      if (th) return;
+      const def = { id: f.id, name: f.name, kind: 'friend', state: 'lives ' + sp.words, desc: f.desc + ' A friend he designed himself.', actions: friendVerbs(f), area: sp.area, friend: f };
+      th = addThing(def, sp.pos[0], sp.pos[1], sp.stand);
+      th.group.position.y = sp.y; th.friendKey = key;
+      if (!reduce && !first) { th.popIn = 0; react('wiggle', 1800); showSymbol('heart', 3500); chirp('happy'); }
+    });
+  }
+
+  // His drawing of a friend for the wall: the same colours and bits as the real one, in crayon.
+  const doodles = {};
+  function friendDoodle(f) {
+    const key = JSON.stringify([f.look, f.kind]);
+    if (doodles[f.id] && doodles[f.id].key === key) return doodles[f.id].tex;
+    const L = f.look || {}, parts = L.parts || [], kind = f.kind;
+    const hex = (w, fb) => '#' + new THREE.Color(friendColour(w, fb)).getHexString();
+    const c = document.createElement('canvas'); c.width = 256; c.height = 200; const x = c.getContext('2d');
+    x.lineWidth = 6; x.lineCap = x.lineJoin = 'round'; x.strokeStyle = '#2a2433';
+    const cx = 128, cy = 108, r = 58;
+    const shape = (fn, fill) => { x.beginPath(); fn(); if (fill) { x.fillStyle = fill; x.fill(); } x.stroke(); };
+    const crawly = kind === 'beetle' || kind === 'bug' || kind === 'snail';
+    if (kind === 'bird') {
+      shape(() => { x.moveTo(cx - r + 6, cy + 4); x.lineTo(cx - r - 40, cy - 18); x.lineTo(cx - r - 30, cy + 22); x.closePath(); }, hex(L.wings, 0x5fa8f5));
+      x.strokeStyle = hex(L.feet, 0xf0a04b); x.lineWidth = 5;
+      [[-12], [12]].forEach(([dx]) => { x.beginPath(); x.moveTo(cx + dx, cy + r - 4); x.lineTo(cx + dx, cy + r + 14); x.moveTo(cx + dx - 9, cy + r + 16); x.lineTo(cx + dx + 9, cy + r + 16); x.stroke(); });
+      x.strokeStyle = '#2a2433'; x.lineWidth = 6;
+    }
+    if (crawly) for (let i = 0; i < 3; i++) for (const s of [-1, 1]) shape(() => { x.moveTo(cx + s * (r - 10), cy - 10 + i * 18); x.lineTo(cx + s * (r + 16), cy - 2 + i * 22); });
+    if (has(parts, 'antennae') || crawly || kind === 'bee' || kind === 'butterfly') for (const s of [-1, 1]) { shape(() => { x.moveTo(cx + s * 14, cy - r + 6); x.quadraticCurveTo(cx + s * 24, cy - r - 26, cx + s * 34, cy - r - 30); }); shape(() => x.arc(cx + s * 35, cy - r - 31, 6, 0, Math.PI * 2), '#2a2433'); }
+    shape(() => crawly ? x.ellipse(cx, cy, r, r * 0.82, 0, 0, Math.PI * 2) : x.arc(cx, cy, r, 0, Math.PI * 2), hex(L.body, 0xf6e3b4));
+    if (crawly) shape(() => { x.moveTo(cx, cy - r * 0.8); x.lineTo(cx, cy + r * 0.8); });
+    if (L.belly) shape(() => x.ellipse(cx + 4, cy + 18, r * 0.55, r * 0.5, 0, 0, Math.PI * 2), hex(L.belly, 0xffffff));
+    if (L.wings && kind === 'bird') shape(() => x.ellipse(cx - 38, cy + 20, 14, 26, 0.45, 0, Math.PI * 2), hex(L.wings, 0x5fa8f5));
+    if (L.wings && kind !== 'bird') for (const s of [-1, 1]) shape(() => x.ellipse(cx + s * (r + 6), cy - 14, 16, 30, s * 0.6, 0, Math.PI * 2), hex(L.wings, 0x5fa8f5));
+    if (has(parts, 'spots')) [[-20, -26], [24, -14], [-26, 18], [20, 26]].forEach(([dx, dy]) => { x.beginPath(); x.arc(cx + dx, cy + dy, 7, 0, Math.PI * 2); x.fillStyle = crawly ? '#fff6dc' : '#2a2433'; x.fill(); });
+    if (has(parts, 'clover')) [[-7, 0], [7, 0], [0, -7], [0, 7]].forEach(([dx, dy]) => { x.beginPath(); x.arc(cx + 8 + dx, cy + 36 + dy, 6, 0, Math.PI * 2); x.fillStyle = '#2f8f5b'; x.fill(); });
+    // eyes and a beak or a smile
+    const ey = crawly ? cy - 20 : cy - 14;
+    [-20, 20].forEach(dx => { x.beginPath(); x.arc(cx + dx, ey, 8, 0, Math.PI * 2); x.fillStyle = '#2a2433'; x.fill(); x.beginPath(); x.arc(cx + dx + 3, ey - 3, 2.5, 0, Math.PI * 2); x.fillStyle = '#fff'; x.fill(); });
+    if (kind === 'bird' || L.beak) shape(() => { x.moveTo(cx - 9, ey + 12); x.lineTo(cx + 9, ey + 12); x.lineTo(cx, ey + 26); x.closePath(); }, hex(L.beak, 0xf0a04b));
+    else shape(() => x.arc(cx, ey + 12, 12, 0.15 * Math.PI, 0.85 * Math.PI));
+    const tex = new THREE.CanvasTexture(c);
+    doodles[f.id] = { key, tex };
+    return tex;
+  }
+  const has = (parts, p) => parts.indexOf(p) >= 0;
+
   // A small wonky flag on a stick, in his colour.
   function pennant(parent, colour) {
     const g = new THREE.Group(); g.position.set(-1.5, 0, 0.9); g.rotation.z = 0.06; parent.add(g);
@@ -548,7 +795,8 @@
   function syncWall() {
     const done = (S.projects || []).filter(p => p.status === 'done').slice(-6);
     const theories = ((S.self && S.self.theories) || []).slice(-8);
-    const key = done.map(p => p.title).join('|') + '#' + theories.length + '#' + (S.self && S.self.colour);
+    const friendOf = p => p.friend && (S.friends || []).find(f => f.name === p.friend.name);
+    const key = done.map(p => p.title).join('|') + '#' + theories.length + '#' + (S.self && S.self.colour) + '#' + JSON.stringify((S.friends || []).map(f => [f.id, f.look, f.kind]));
     if (key === wallKey) return; wallKey = key;
     while (wall.children.length) wall.remove(wall.children[0]);
     const c = signatureColour(); const edge = c ? c.getHex() : 0xe0a548;
@@ -558,8 +806,10 @@
       mesh(box(0.52, 0.42, 0.02), toon(edge), 0, 0, 0, g);
       mesh(new THREE.PlaneGeometry(0.44, 0.34), basic(0xfffaf0), 0, 0, 0.012, g);
       mesh(new THREE.PlaneGeometry(0.42, 0.11), new THREE.MeshBasicMaterial({ map: labelTexture(p.friend ? p.friend.name : p.title, 'rgba(0,0,0,0)', '#2a2433'), transparent: true }), 0, -0.1, 0.014, g);
-      // a little round doodle with a face, the way he draws everything
-      mesh(new THREE.CircleGeometry(0.07, 16), basic(edge), 0, 0.05, 0.014, g);
+      // a friend he designed is drawn as he described them; anything else is a little round doodle
+      const fr = friendOf(p);
+      if (fr) mesh(new THREE.PlaneGeometry(0.3, 0.234), new THREE.MeshBasicMaterial({ map: friendDoodle(fr), transparent: true }), 0, 0.045, 0.014, g);
+      else mesh(new THREE.CircleGeometry(0.07, 16), basic(edge), 0, 0.05, 0.014, g);
       mesh(sph(0.025, 8, 6), toon(0xc2473d), 0, 0.2, 0.02, g); // the pin
     });
     theories.forEach((th, i) => {
@@ -692,12 +942,14 @@
   const soundBtn = $('sound');
   function ensureAudio() { try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); if (audio.state === 'suspended') audio.resume(); } catch (e) { audio = null; } return audio; }
   const TUNES = { boop: [[520, 0.08]], hi: [[660, 0.07], [880, 0.09]], find: [[660, 0.07], [880, 0.07], [1170, 0.14]], oops: [[520, 0.1], [330, 0.18]],
-    happy: [[700, 0.06], [930, 0.06], [700, 0.06], [1050, 0.12]], hum: [[440, 0.14], [494, 0.14], [523, 0.2]], yawn: [[480, 0.3], [300, 0.35]] };
+    happy: [[700, 0.06], [930, 0.06], [700, 0.06], [1050, 0.12]], hum: [[440, 0.14], [494, 0.14], [523, 0.2]], yawn: [[480, 0.3], [300, 0.35]],
+    song: [[1400, 0.08], [1650, 0.08], [0, 0.06], [1400, 0.08], [1650, 0.08], [900, 0.22]] };
   function chirp(kind) {
     if (!soundOn || document.hidden) return;
     const a = ensureAudio(); if (!a) return;
     let at = a.currentTime + 0.01;
     for (const [f, d] of TUNES[kind] || []) {
+      if (!f) { at += d; continue; } // a little pause in a song
       const o = a.createOscillator(), g = a.createGain();
       o.type = 'sine'; o.frequency.setValueAtTime(f, at); o.frequency.exponentialRampToValueAtTime(f * 1.12, at + d);
       g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(0.1, at + 0.015); g.gain.exponentialRampToValueAtTime(0.0001, at + d);
@@ -857,7 +1109,7 @@
   function apply(d) {
     if (!d || !d.needs) return;
     S.needs = d.needs; S.sleeping = !!d.sleeping; S.mood = d.mood || 'content';
-    S.objects = d.objects || {}; S.built = d.built || []; S.uses = d.uses || {}; S.items = d.items || []; S.wishes = d.wishes || []; S.projects = d.projects || [];
+    S.objects = d.objects || {}; S.built = d.built || []; S.uses = d.uses || {}; S.items = d.items || []; S.wishes = d.wishes || []; S.projects = d.projects || []; S.friends = d.friends || [];
     const prevSecrets = S.secrets || {}, prevMood = S.mood;
     S.secrets = d.secrets || {}; S.wonder = d.wonder || null; S.self = d.self || null;
     if (!first) {
@@ -874,7 +1126,7 @@
       if (S.mood === 'proud' && prevMood !== 'proud' && R.kind !== 'doubletake') { react('wiggle', 1700); showSymbol('star', 3000); chirp('happy'); }
     }
     const hl = d.highlights || []; S.lastHighlight = hl.length ? hl[hl.length - 1].at : S.lastHighlight;
-    if (world) { syncBuilt(); syncGifts(); syncSecrets(); syncWall(); }
+    if (world) { syncBuilt(); syncGifts(); syncFriends(); syncSecrets(); syncWall(); }
     renderWho();
     Object.values(things).forEach(t => t.update(S.objects[t.def.id] || t.def.state));
 
@@ -886,6 +1138,9 @@
 
     if (d.last && d.last.at !== lastActAt) {
       if (!first) startAct(d.last.object, d.last.verb, d.last.line);
+      // a friend he spends time with answers: a song, a click, a buzz
+      const fr = things[d.last.object] && things[d.last.object].group.userData.friend;
+      if (fr && !first) { fr.sing = 4.5; fr.turn = 0; if (fr.f.kind === 'bird') setTimeout(() => chirp('song'), 1500); }
       lastActAt = d.last.at;
     }
     first = false;
@@ -893,7 +1148,7 @@
 
     NEEDS.forEach(([k]) => { const v = Math.round(clamp(d.needs[k] || 0) * 100); $('b-' + k).style.width = v + '%'; $('m-' + k).style.width = v + '%'; $('o-' + k).textContent = v + '%'; });
     const t = things[place];
-    const where = d.paused ? 'Paused' : (t ? (t.def.area === 'outside' ? 'Outside, by the ' : 'At the ') + t.def.name : 'In his house');
+    const where = d.paused ? 'Paused' : (t ? (t.def.kind === 'friend' ? (t.def.area === 'outside' ? 'Outside, with ' : 'With ') : t.def.area === 'outside' ? 'Outside, by the ' : 'At the ') + t.def.name : 'In his house');
     const moodText = cap(S.sleeping ? 'asleep' : S.mood);
     $('placeChip').textContent = where; $('moodChip').textContent = moodText;
     $('fWhere').textContent = where; $('fMood').textContent = moodText; $('fShape').textContent = cap(d.shape || 'ball');
@@ -959,7 +1214,7 @@
   }
 
   // ---------- Highlights: only the moments worth remembering ----------
-  const HL_ICON = { project: '\ud83d\udee0\ufe0f', first: '\u2728', wish: '\ud83c\udf20', yes: '\ud83c\udf89', no: '\u2601\ufe0f', built: '\ud83d\udd28', mood: '\ud83d\udcad', chat: '\ud83d\udcac', gift: '\ud83c\udf81', secret: '\ud83d\udddd\ufe0f', wonder: '\ud83e\udd14', theory: '\ud83d\udca1', self: '\ud83c\udf1f', goal: '\ud83c\udf1f', ritual: '\ud83c\udf3f', oops: '\ud83d\ude35' };
+  const HL_ICON = { project: '\ud83d\udee0\ufe0f', first: '\u2728', wish: '\ud83c\udf20', yes: '\ud83c\udf89', no: '\u2601\ufe0f', built: '\ud83d\udd28', mood: '\ud83d\udcad', chat: '\ud83d\udcac', gift: '\ud83c\udf81', secret: '\ud83d\udddd\ufe0f', wonder: '\ud83e\udd14', theory: '\ud83d\udca1', self: '\ud83c\udf1f', goal: '\ud83c\udf1f', ritual: '\ud83c\udf3f', oops: '\ud83d\ude35', friend: '\ud83d\udc95' };
   const HL_BIG = { built: 1, yes: 1, wish: 1, project: 1, secret: 1, wonder: 1, goal: 1 };
   // Until his server sends highlights, pick them out of the recent diary.
   function guessHighlights(diary) {
@@ -1230,6 +1485,7 @@
       if (u.blink) u.blink.material.color.setHSL((t * 0.2) % 1, 0.6, 0.7);
       if (u.blinkScreen) u.blinkScreen(t);
       if (u.water) u.water.material.color.setHSL(0.56, 0.5, 0.58 + Math.sin(t * 1.5) * 0.03);
+      if (u.friend) friendTick(th, dt, t);
     });
 
     // camera: follows him gently unless someone just dragged it, or eases to a tapped thing

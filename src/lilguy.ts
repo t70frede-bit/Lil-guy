@@ -13,6 +13,7 @@ import { urgent } from "./needs.js";
 import { addTheory, applyPick, applyReflection, nameOf, needsReflection, treasure } from "./self.js";
 import { objectsOf } from "./world.js";
 import { today } from "./wonder.js";
+import { moveIn, moveInFinished, SPOT_WORDS, type Friend } from "./friends.js";
 
 export const MAX_MESSAGES_PER_DAY = 12;
 
@@ -67,6 +68,9 @@ const MISHAPS = [
 export async function step(s: State, brain: Brain, out: Outbox): Promise<void> {
   if (s.paused) return;
   s.ticks++;
+
+  // Friends he finished designing before they could move in: they move in now.
+  for (const f of moveInFinished(s)) welcome(s, f);
 
   // The very first time after this update: he decides some things about himself.
   if (!s.self && !s.sleeping) await pickSelf(s, brain, out);
@@ -419,7 +423,10 @@ async function work(s: State, brain: Brain | undefined, out: Outbox) {
     feelProud(s);
     treasure(s, p.friend ? `The day I finished designing ${p.friend.name}.` : `The day I finished "${p.title}".`);
     highlight(s, "project", p.friend ? `Finished designing a new friend: ${p.friend.name}!` : `Finished his project "${p.title}"!`);
-    await out.inform(finishedMessage(p, brain.model)); // always: a finished project is what Frederik paid for
+    // A finished friend design is not just a drawing: the friend moves in, where he pictured them.
+    const moved = p.kind === "friend" || p.friend ? moveIn(s, p) : undefined;
+    if (moved) welcome(s, moved.friend, !moved.isNew);
+    await out.inform(finishedMessage(p, brain.model, moved?.friend)); // always: a finished project is what Frederik paid for
   }
 }
 
@@ -439,12 +446,26 @@ async function outOfTokens(s: State, p: Project, brain: Brain, out: Outbox) {
   await out.askMore(p, more);
 }
 
-export function finishedMessage(p: Project, model: string): string {
+/** A friend moves into his world (or a friend he redesigned gets their new look). */
+export function welcome(s: State, f: Friend, redesigned = false) {
+  if (redesigned) {
+    note(s, `${f.name} got the new look he designed, and still lives ${SPOT_WORDS[f.spot]}.`);
+    highlight(s, "friend", `${f.name} got a new look, just as he pictured it.`);
+    return;
+  }
+  s.needs = applyEffect(s.needs, { company: 0.3, fulfilled: 0.1 });
+  feelProud(s);
+  treasure(s, `The day ${f.name} moved in.`);
+  note(s, `${f.name} moved in! ${f.name} lives ${SPOT_WORDS[f.spot]} now.`);
+  highlight(s, "friend", `${f.name} moved in and lives ${SPOT_WORDS[f.spot]} now!`);
+}
+
+export function finishedMessage(p: Project, model: string, moved?: Friend): string {
   const f = p.friend;
   return [
     `Lil guy finished his project "${p.title}". It used ${p.used} of the ${p.budget} tokens you approved.`,
     f ? `His new friend design: ${f.name}. Looks: ${f.looks}. Shape: ${f.shape}. Colour: ${f.colour}. Personality: ${f.personality}. Likes: ${f.likes}.` : "",
-    f ? "The friend does not move in by itself. If lil guy wants that, he will have to wish for it." : "",
+    moved ? `${moved.name} has moved into his world and lives ${SPOT_WORDS[moved.spot]}. You can see ${moved.name} on his page.` : "",
     `The last part he made: ${p.pieces[p.pieces.length - 1]?.text.slice(0, 700) ?? ""}`,
     `It cost about ${kr(p.spentDkk ?? 0)} (estimate was ${kr(p.estimate.dkk)}, model ${model}).`,
   ].filter(Boolean).join("\n\n");
