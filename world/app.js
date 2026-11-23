@@ -65,6 +65,7 @@
           const det = el('details'), sum = el('summary');
           sum.append(el('b', '', (x.dir === 'out' ? '📤 ' : '📧 ') + (x.account ? 'Account mail' : (x.subject || '(no subject)'))),
             el('span', 'who', (x.dir === 'out' ? 'To ' : 'From ') + x.who), el('time', '', hhmm(x.at)));
+          if (x.dir === 'in') sum.append(el('span', 'who', x.readAt ? '👀 Lil guy read it at ' + hhmm(x.readAt) : 'Not read by lil guy yet'));
           det.append(sum, el('p', '', x.text));
           li.append(det); list.append(li);
         }

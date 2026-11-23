@@ -208,3 +208,24 @@ test("his computer history starts with the chat he still remembers", async () =>
   const l = load(f);
   assert.deepEqual(l.log!.map(x => `${x.who}:${x.text}`), ["Frederik:Hi", "Lil guy:Hello!"]);
 });
+
+test("Frederik's computer page shows when he read an email, and he is told to answer letters", async () => {
+  const s = freshState();
+  const office: PostOffice = {
+    fetch: async () => {
+      const { parseEmail } = await import("../src/email.js");
+      const p = await parseEmail("mail:30", raw("Frederik <frederik@example.com>", "Test mail", "You getting this?"), "frederik@example.com", "2026-11-23T15:37:39Z");
+      return { letters: [p.letter], full: [p.full], canSendTo: [], canSend: true };
+    },
+    send: async () => ({ ok: true }),
+  };
+  await checkMail(s, office);
+  assert.equal(s.log!.at(-1)!.readAt, undefined);
+  await doMove(s, { type: "read_email" }, recorder().out);
+  assert.ok(s.log!.at(-1)!.readAt, "marked as read on his computer");
+  // An older log entry without an id is still matched by its time
+  delete s.log!.at(-1)!.mailId; delete s.log!.at(-1)!.readAt;
+  await checkMail(s, office);
+  assert.ok(s.log!.at(-1)!.readAt);
+  assert.match(emailText(s), /You can write to: frederik@example.com/);
+});

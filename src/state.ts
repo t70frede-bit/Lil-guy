@@ -13,7 +13,7 @@ import { mood, type Mood } from "./needs.js";
 
 export interface DiaryEntry { at: string; text: string }
 /** One line on his computer's private history, for Frederik's eyes only (never on the public page). */
-export interface ComputerLog { at: string; kind: "chat" | "mail"; dir: "in" | "out"; who: string; subject?: string; text: string; account?: boolean }
+export interface ComputerLog { at: string; kind: "chat" | "mail"; dir: "in" | "out"; who: string; subject?: string; text: string; account?: boolean; mailId?: string; readAt?: string }
 /** A moment worth remembering, for the Highlights on his page. */
 export type HighlightKind = "first" | "wish" | "yes" | "no" | "built" | "mood" | "chat" | "gift" | "project" | "secret" | "wonder" | "theory" | "self" | "goal" | "ritual" | "oops" | "friend";
 export interface Highlight { at: string; kind: HighlightKind; text: string }

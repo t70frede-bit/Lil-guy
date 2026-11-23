@@ -154,6 +154,7 @@ export function readEmail(s: State, reward: (key: string) => boolean): Letter | 
   if (!l) { note(s, "Email: checked his inbox. Nothing new."); return undefined; }
   l.read = true;
   l.readAt = new Date().toISOString();
+  markReadOnComputer(s, l);
   sitAtComputer(s, "read an email", "Opened his inbox on his little computer and read an email.");
   if (s.objects.computer === "you've got mail" && !unread(s).length) s.objects.computer = "on";
   const sender = l.address.split("@")[1] ?? l.address;
@@ -165,6 +166,12 @@ export function readEmail(s: State, reward: (key: string) => boolean): Letter | 
     if (!s.tried["email:first"]) { s.tried["email:first"] = 1; highlight(s, "first", "Read the very first email in his own inbox."); }
   }
   return l;
+}
+
+/** Frederik's Computer page shows when he read each email. */
+function markReadOnComputer(s: State, l: Letter) {
+  const e = s.log?.find(x => x.kind === "mail" && x.dir === "in" && !x.readAt && (x.mailId ? x.mailId === l.id : x.at === l.at));
+  if (e && l.readAt) e.readAt = l.readAt;
 }
 
 /** What he knows about his email, for his thinking. Emails are wrapped and marked as untrusted. */
@@ -297,10 +304,11 @@ export async function checkMail(s: State, office: PostOffice | undefined, tellFr
       if (!f || known.has(l.id)) continue;
       // His private history: the whole email, except account mail, which only Telegram shows.
       logComputer(s, l.kind === "account"
-        ? { kind: "mail", dir: "in", who: l.address, account: true, text: "Account mail (codes, log-ins or money). Lil guy only saw that it came; the whole email is on Telegram." }
-        : { kind: "mail", dir: "in", who: f.from, subject: f.subject, text: f.text, at: l.at });
+        ? { kind: "mail", dir: "in", who: l.address, account: true, text: "Account mail (codes, log-ins or money). Lil guy only saw that it came; the whole email is on Telegram.", mailId: l.id, at: l.at }
+        : { kind: "mail", dir: "in", who: f.from, subject: f.subject, text: f.text, mailId: l.id, at: l.at });
       if (tellFrederik) await tellFrederik(telegramCopy(f, l.kind)).catch(() => {});
     }
+    for (const l of mail.inbox) if (l.read) markReadOnComputer(s, l);
     if (failing) console.log("Mail reachable again.");
     failing = false;
   } catch (e) {
