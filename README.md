@@ -19,6 +19,11 @@ A very small creature who lives on a server, gets bored, lonely and feisty on hi
   - The wishmaster sends it to Telegram with **Approve** and **Not now**. Nothing starts before Frederik says yes, and a project must come from a real need.
   - An approved project can never use more tokens than approved. If it runs out, it stops and asks for more (**Give more** / **Stop it**).
   - One project at a time. A finished friend design moves into his world straight away (src/friends.ts): its kind, colours and little extras come from his own words, and it lives where he said (the windowsill, by the big stone...). He can visit, listen to and sit with his friends. Lil guy decides whether a friend has a mind of their own (src/mind.ts): if so, the wishmaster asks Frederik to approve a monthly token allowance (code-made estimate, hard cap); the friend then thinks every 20 minutes while he is awake and now and then says something to him.
+- **Email** (`src/email.ts`): his own address, lilguy@gokkehub.com, on his little computer.
+  - Cloudflare Email Routing hands his mail to the world page's Worker. Frederik always gets a copy in his own inbox (for confirm links); lil guy's server picks up the other copy.
+  - Emails are letters to read, never orders: links, addresses and long numbers are blanked, and account mail (codes, log-ins, money services) is never shown to him at all. Nothing from email goes on his public page.
+  - He can write at most 3 emails a day, only to addresses his computer allows (on Cloudflare's free plan, addresses Frederik verified) or to people who wrote him a real letter. Frederik sees every email he sends.
+  - He never signs up for anything himself. A wish to join something goes to Frederik, who signs up with lil guy's address.
 - **Limits**: at most 12 messages to Frederik a day; `/pause` stops him instantly.
 
 Character sheet: `src/character.ts`. Places and moves: `src/world.ts`.

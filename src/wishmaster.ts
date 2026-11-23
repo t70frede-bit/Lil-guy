@@ -58,6 +58,9 @@ export function judge(wish: Wish, needs: Needs, owned: string[]): Verdict {
     }
     return { kind: "granted", thing: free, why: `${free.name} is free${need && inNeed[need] ? `, and his ${need} is ${inNeed[need]}` : ""}.` };
   }
+  if (isSignUpWish(`${wish.item} ${wish.reason}`)) {
+    return { kind: "ask_frederik", why: "He wants to join something. He never signs up himself, so if you say yes, sign him up with his address (lilguy@gokkehub.com) and click the confirm link that lands in your Gmail." };
+  }
   if (isInternetWish(wish.item)) {
     return { kind: "ask_frederik", why: "He wants to look around on the internet from his little computer. That is not built yet, so saying yes does not switch anything on. It tells Claude he really wants it, and then it gets planned with a cost in kroner for you to approve first." };
   }
@@ -74,4 +77,9 @@ export function applyEffect(needs: Needs, effect: Partial<Needs>): Needs {
 /** When nothing free matches, suggest one free thing that would meet the need, so he can ask for it. */
 export function freeOptionsFor(need: NeedName): string[] {
   return FREE_THINGS.filter(t => t.meets === need).map(t => t.name);
+}
+
+/** Wishes to join a site, a newsletter or a service: only Frederik signs up, with lil guy's address. */
+export function isSignUpWish(text: string): boolean {
+  return /\b(sign(ing)? ?up|subscri(be|ption)|newsletter|register|join(ing)? (a|the)? ?(club|site|website|list|mailing)|mailing list|pen ?pal|an? account)\b/i.test(text);
 }

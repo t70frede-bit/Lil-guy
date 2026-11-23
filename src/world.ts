@@ -145,6 +145,8 @@ export const MOVE_TYPES = [
   "message",       // send Frederik a message (text)
   "propose_project", // in the workshop: plan a project (item = name, kind, text = idea, steps, need). Frederik must approve it
   "work_on_project", // in the workshop: work on the next step of the approved project
+  "read_email",    // at his computer: read his oldest unread email
+  "write_email",   // at his computer: write an email (target = to, title = subject, text = the email)
   "give_friend_mind", // decide that one of his friends gets their own mind (target = friend, text = what it is like). Frederik approves the cost
 ] as const;
 export type MoveType = (typeof MOVE_TYPES)[number];
@@ -173,6 +175,8 @@ export function moveEffect(type: MoveType, n: Needs): Needs {
     case "try": e.energy -= 0.05; e.fulfilled += 0.03; break;
     case "rest": e.energy += 0.06; e.curiosity += 0.02; break;
     case "message": e.company += 0.05; break;
+    case "read_email": e.company += 0.04; e.curiosity -= 0.04; break;
+    case "write_email": e.company += 0.04; e.fulfilled += 0.03; break;
     case "work_on_project": e.energy -= 0.06; break;
     default: break;
   }

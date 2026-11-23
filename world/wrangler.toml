@@ -15,3 +15,12 @@ id = "c1a775e20c3d463cbd2ee48d990687f2"
 type = "Text"
 globs = ["**/*.html", "**/app.js", "**/world.json"]
 fallthrough = true
+
+# His email. MAIL_ADDRESS is his address. FORWARD_TO (Frederik's inbox) and MAIL_ALLOWED_TO are set
+# on the Worker in Cloudflare, not here, so no personal address lives in the repo.
+[vars]
+MAIL_ADDRESS = "lilguy@gokkehub.com"
+
+# Sends from his address. On the free plan Cloudflare only delivers to verified addresses (Frederik).
+[[send_email]]
+name = "EMAIL"

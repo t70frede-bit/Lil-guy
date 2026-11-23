@@ -15,6 +15,7 @@ import { objectsOf } from "./world.js";
 import { today } from "./wonder.js";
 import { moveIn, moveInFinished, SPOT_WORDS, type Friend } from "./friends.js";
 import { canAfford, due, MIND_COOLDOWN_MS, newMind } from "./mind.js";
+import { readEmail, writeEmail, type Sender } from "./email.js";
 
 export const MAX_MESSAGES_PER_DAY = 12;
 
@@ -31,6 +32,8 @@ export interface Outbox {
   askMore(project: Project, more: { tokens: number; dkk: number }): Promise<void>;
   /** The wishmaster asks Frederik to approve the monthly cost of a friend's own mind. */
   askMind?(friend: Friend, why: string): Promise<void>;
+  /** His post office: sends an email from his own address. Missing until it is set up. */
+  email?: Sender;
 }
 
 function canMessage(s: State): boolean {
@@ -273,6 +276,19 @@ export async function doMove(s: State, move: Move & { reason?: string }, out: Ou
       note(s, `Said to Frederik: ${text}`);
       highlight(s, "chat", "Sent Frederik a message.");
       await out.say(text);
+      break;
+    }
+    case "read_email": {
+      s.needs = moveEffect(move.type, s.needs);
+      readEmail(s, key => reward(s, key));
+      break;
+    }
+    case "write_email": {
+      const text = (move.text ?? "").trim();
+      if (!text || !move.target) break;
+      if (asksForCompany(text)) { note(s, "Email: almost wrote to ask someone to hang out, then decided to look after himself in his world."); break; }
+      if (asksFrederikToChoose(text)) { note(s, "Email: almost asked someone to choose for him, then decided to pick himself."); break; }
+      await writeEmail(s, move.target, move.title ?? move.item ?? "", text, out.email, out);
       break;
     }
     case "wish": await wish(s, move, out); break;
