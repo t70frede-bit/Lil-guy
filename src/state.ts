@@ -12,6 +12,8 @@ import type { Friend } from "./friends.js";
 import { mood, type Mood } from "./needs.js";
 
 export interface DiaryEntry { at: string; text: string }
+/** One line on his computer's private history, for Frederik's eyes only (never on the public page). */
+export interface ComputerLog { at: string; kind: "chat" | "mail"; dir: "in" | "out"; who: string; subject?: string; text: string; account?: boolean }
 /** A moment worth remembering, for the Highlights on his page. */
 export type HighlightKind = "first" | "wish" | "yes" | "no" | "built" | "mood" | "chat" | "gift" | "project" | "secret" | "wonder" | "theory" | "self" | "goal" | "ritual" | "oops" | "friend";
 export interface Highlight { at: string; kind: HighlightKind; text: string }
@@ -42,6 +44,12 @@ export interface State {
   last?: { object: string; verb: string; line: string; at: string };
   /** What waits on his little computer: things to tell Frederik, and Frederik's unread messages. */
   computer?: Mailbox;
+  /** His chats with Frederik and the emails he sent and got, newest last. Private: only Frederik's secret link shows it. */
+  log?: ComputerLog[];
+  /** Frederik's secret key for that private history. Only its hash leaves the server. */
+  privateKey?: string;
+  /** Whether Frederik has been sent the link to the private Computer panel. */
+  privateLinkSent?: boolean;
   /** His own email address and inbox (lilguy@gokkehub.com). */
   mail?: Mail;
   sleeping: boolean;
@@ -150,7 +158,16 @@ export function backfillHighlights(s: State) {
   if (s.highlights.length > 100) s.highlights.splice(0, s.highlights.length - 100);
 }
 
+const LOG_KEEP = 300;
+/** Keep something on his computer's private history. */
+export function logComputer(s: State, e: Omit<ComputerLog, "at"> & { at?: string }) {
+  s.log ??= [];
+  s.log.push({ ...e, at: e.at ?? new Date().toISOString(), text: e.text.slice(0, 4000) });
+  if (s.log.length > LOG_KEEP) s.log.splice(0, s.log.length - LOG_KEEP);
+}
+
 export function remember(s: State, from: "frederik" | "lil guy", text: string) {
+  logComputer(s, { kind: "chat", dir: from === "frederik" ? "in" : "out", who: from === "frederik" ? "Frederik" : "Lil guy", text });
   s.chat.push({ from, text });
   if (s.chat.length > 20) s.chat.splice(0, s.chat.length - 20);
 }

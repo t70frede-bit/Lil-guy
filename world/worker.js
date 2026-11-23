@@ -9,6 +9,9 @@
 //                It also sends his home screen icons (world/icons/*.png) as base64.
 //   GET  /manifest.webmanifest  the home screen app: name, colours and his face as the icon
 //   GET  /apple-touch-icon.png, /icon-192.png, /icon-512.png  the icons, from the last /assets push
+//   POST /private   his server sends his private history (chats with Frederik, emails) and the hash of
+//                   Frederik's secret key. Same token as /state.
+//   GET  /private   the page asks for it with Frederik's key (x-key header); anyone else gets 403.
 //
 // His email (lilguy@gokkehub.com), through Cloudflare Email Routing:
 //   email()          a new email for him: it waits here for his server, which shows Frederik on Telegram.
@@ -60,6 +63,7 @@ const json = (body, status = 200) => new Response(body, {
 });
 
 const MAX_MAIL_BYTES = 200 * 1024;
+const MAX_PRIVATE_BYTES = 512 * 1024;
 const MAX_WAITING_MAIL = 50;
 const MAX_SENT_PER_DAY = 5;
 
@@ -138,6 +142,27 @@ export default {
     const { pathname } = new URL(req.url);
 
     if (pathname === "/mail" || pathname.startsWith("/mail/")) return handleMail(req, env, pathname);
+
+    if (pathname === "/private") {
+      if (req.method === "POST") {
+        if (!await isOwner(req, env)) return json('{"error":"wrong token"}', 403);
+        const body = await req.text();
+        if (body.length > MAX_PRIVATE_BYTES) return json('{"error":"too big"}', 413);
+        try { const p = JSON.parse(body); if (!/^[0-9a-f]{64}$/.test(p?.keyHash) || !Array.isArray(p.log)) throw 0; }
+        catch { return json('{"error":"bad private history"}', 400); }
+        await env.LILGUY.put("private", body);
+        return json('{"ok":true}');
+      }
+      if (req.method === "GET") {
+        const key = req.headers.get("x-key") ?? "";
+        const stored = await env.LILGUY.get("private");
+        if (!stored || key.length < 20) return json('{"error":"no"}', 403);
+        let p; try { p = JSON.parse(stored); } catch { return json('{"error":"no"}', 403); }
+        if (await sha256(key) !== p.keyHash) return json('{"error":"no"}', 403);
+        return json(JSON.stringify({ log: p.log }));
+      }
+      return json('{"error":"method not allowed"}', 405);
+    }
 
     if (pathname === "/state") {
       if (req.method === "GET" || req.method === "HEAD") {

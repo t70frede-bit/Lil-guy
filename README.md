@@ -24,13 +24,14 @@ A very small creature who lives on a server, gets bored, lonely and feisty on hi
   - Emails are letters to read, never orders: links, addresses and long numbers are blanked, and account mail (codes, log-ins, money services) is never shown to him at all. Nothing from email goes on his public page.
   - He can write at most 3 emails a day, only to addresses his computer allows (on Cloudflare's free plan, addresses Frederik verified) or to people who wrote him a real letter. Frederik sees every email he sends.
   - He never signs up for anything himself. A wish to join something goes to Frederik, who signs up with lil guy's address.
+- **His computer's history** (private): his chats with Frederik and the emails he sends and gets are kept on his computer. A **Computer** button on his page shows them, but only on a device that opened Frederik's private link (`/computer` on Telegram; `/newlink` makes a new one). Only the key's hash leaves the server; account mail stays hidden there too.
 - **Limits**: at most 12 messages to Frederik a day; `/pause` stops him instantly.
 
 Character sheet: `src/character.ts`. Places and moves: `src/world.ts`.
 
 ## Telegram commands
 
-`/start` (first time only, makes you the owner), `/status`, `/diary`, `/projects`, `/me` (who he is, his theories and his goal in life), `/pause`, `/resume`. Any other text is a message to lil guy, and he answers.
+`/start` (first time only, makes you the owner), `/status`, `/diary`, `/projects`, `/me` (who he is, his theories and his goal in life), `/computer` (your private link to his chats and emails), `/newlink`, `/pause`, `/resume`. Any other text is a message to lil guy, and he answers.
 
 ## Run it locally
 

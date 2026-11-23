@@ -15,7 +15,7 @@
 import PostalMime from "postal-mime";
 import type { Outbox } from "./lilguy.js";
 import { sitAtComputer } from "./computer.js";
-import { highlight, note, type State } from "./state.js";
+import { highlight, logComputer, note, type State } from "./state.js";
 import { today } from "./wonder.js";
 
 export const DEFAULT_ADDRESS = "lilguy@gokkehub.com";
@@ -225,6 +225,7 @@ export async function writeEmail(s: State, to: string, subject: string, text: st
     return;
   }
   mail.sent.push({ to, subject, at: new Date().toISOString() });
+  logComputer(s, { kind: "mail", dir: "out", who: to, subject, text });
   if (mail.sent.length > 20) mail.sent.splice(0, mail.sent.length - 20);
   note(s, `Email: sent an email to ${to.split("@")[1]}.`);
   highlight(s, "chat", "Wrote an email on his little computer.");
@@ -284,11 +285,14 @@ export async function checkMail(s: State, office: PostOffice | undefined, tellFr
     if (got.address) mail.address = got.address;
     const known = new Set(mail.inbox.map(l => l.id));
     receive(s, got.letters);
-    if (tellFrederik) {
-      for (let i = 0; i < got.letters.length; i++) {
-        const f = got.full?.[i];
-        if (f && !known.has(got.letters[i].id)) await tellFrederik(telegramCopy(f, got.letters[i].kind)).catch(() => {});
-      }
+    for (let i = 0; i < got.letters.length; i++) {
+      const l = got.letters[i], f = got.full?.[i];
+      if (!f || known.has(l.id)) continue;
+      // His private history: the whole email, except account mail, which only Telegram shows.
+      logComputer(s, l.kind === "account"
+        ? { kind: "mail", dir: "in", who: l.address, account: true, text: "Account mail (codes, log-ins or money). Lil guy only saw that it came; the whole email is on Telegram." }
+        : { kind: "mail", dir: "in", who: f.from, subject: f.subject, text: f.text, at: l.at });
+      if (tellFrederik) await tellFrederik(telegramCopy(f, l.kind)).catch(() => {});
     }
     if (failing) console.log("Mail reachable again.");
     failing = false;

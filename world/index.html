@@ -104,6 +104,23 @@ details.all summary { cursor: pointer; font: 600 13px var(--display); color: var
 .legend b { font: 600 14px var(--display); display: block; }
 .legend span, .note { color: var(--muted); font-size: 12px; }
 .panel h3 { font: 600 14px var(--display); margin: 6px 0 0; }
+.dock button[hidden] { display: none; }
+.tabs { display: flex; gap: 6px; }
+.tabs button, .forget { border: 0; border-radius: 12px; padding: 6px 12px; background: var(--track); color: var(--ink); font: 600 13px var(--body); cursor: pointer; }
+.tabs button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+.forget { justify-self: start; font-weight: 400; color: var(--muted); }
+.log { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; font-size: 13px; }
+.log .day { font: 600 12px var(--display); color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin-top: 6px; }
+.log .msg { max-width: 85%; padding: 8px 10px; border-radius: 14px; background: var(--track); overflow-wrap: anywhere; white-space: pre-wrap; }
+.log .msg.out { justify-self: end; background: color-mix(in srgb, var(--accent) 18%, transparent); }
+.log .msg time, .log .mail time { display: block; color: var(--muted); font-size: 11px; margin-top: 2px; }
+.log .mail { border: 1px solid var(--line); border-radius: 14px; padding: 8px 10px; overflow-wrap: anywhere; }
+.log .mail.out { border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.log .mail summary { cursor: pointer; list-style: none; }
+.log .mail summary b { display: block; }
+.log .mail .who { color: var(--muted); font-size: 12px; }
+.log .mail p { margin: 6px 0 0; white-space: pre-wrap; }
+.log .empty { color: var(--muted); }
 .list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 13px; }
 .list li { display: flex; justify-content: space-between; gap: 8px; }
 .list li span:last-child { color: var(--muted); text-align: right; }
@@ -153,6 +170,8 @@ details.all summary { cursor: pointer; font: 600 13px var(--display); color: var
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-5h4v5"/></svg>World</button>
   <button type="button" data-panel="diary" aria-expanded="false" aria-controls="p-diary">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg>Highlights</button>
+  <button type="button" data-panel="computer" aria-expanded="false" aria-controls="p-computer" id="computerBtn" hidden>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>Computer</button>
   <button type="button" data-panel="about" aria-expanded="false" aria-controls="p-about">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg>About</button>
 </nav>
@@ -217,6 +236,16 @@ details.all summary { cursor: pointer; font: 600 13px var(--display); color: var
     <ul class="hl" id="highlights"><li class="empty">Waiting to hear from him.</li></ul>
     <details class="all"><summary>Everything that happened lately</summary>
       <ul class="diary" id="diary"><li><time></time><span class="empty">Waiting to hear from him.</span></li></ul></details>
+  </div>
+</section>
+
+<section class="panel glass" id="p-computer" hidden aria-label="His computer">
+  <header><h2>His computer</h2><button class="close" type="button" aria-label="Close">&times;</button></header>
+  <div class="body">
+    <p class="note" style="font-size:13px; margin:0">Only on this device, through your private link. Your chats with him and the emails he sends and gets.</p>
+    <div class="tabs" role="tablist"><button type="button" data-log="all" aria-pressed="true">All</button><button type="button" data-log="chat" aria-pressed="false">Chats</button><button type="button" data-log="mail" aria-pressed="false">Emails</button></div>
+    <ul class="log" id="logList"><li class="empty">Loading...</li></ul>
+    <button type="button" class="forget" id="forgetKey">Remove from this device</button>
   </div>
 </section>
 
