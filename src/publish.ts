@@ -122,6 +122,7 @@ export async function publishAssets(url: string | undefined, token: string | und
 const MAX_PRIVATE_BYTES = 480 * 1024;
 let privateSent = "";
 let privateFailing = false;
+let privateRetryAt = 0;
 /** True once the Worker has taken his private history, so the link actually works. */
 export let privateLive = false;
 
@@ -138,12 +139,12 @@ export function privateBody(s: State): string | undefined {
 /** Send his private history to the Worker when it changed. */
 export async function publishPrivate(s: State, url: string | undefined, token: string | undefined) {
   const body = privateBody(s);
-  if (!url || !token || !body || body === privateSent) return;
+  if (!url || !token || !body || body === privateSent || Date.now() < privateRetryAt) return;
   try {
     const res = await fetch(`${url.replace(/\/$/, "")}/private`, {
       method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body, signal: AbortSignal.timeout(15_000),
     });
-    if (res.status === 404) { privateSent = body; return; } // the Worker does not take it yet; try again when something changes
+    if (res.status === 404) { privateRetryAt = Date.now() + 10 * 60_000; return; } // the Worker does not take it yet; try again in 10 minutes
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     privateSent = body;
     privateLive = true;
