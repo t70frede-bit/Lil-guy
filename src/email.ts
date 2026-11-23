@@ -47,6 +47,8 @@ export interface Mail {
   inbox: Letter[];
   /** Who his computer can send to right now (the Worker says; on the free plan only Frederik). */
   canSendTo: string[];
+  /** Whether his computer can send email at all (the Worker has a way to send). */
+  canSend?: boolean;
   sentToday: { day: string; count: number };
   /** Emails he sent lately, so he remembers. */
   sent: { to: string; subject: string; at: string }[];
@@ -181,9 +183,13 @@ export function emailText(s: State): string {
         ? `<email from="${l.address}">An account letter (codes, log-ins or money). Frederik takes care of those; it is not for you.</email>`
         : `<email from="${l.from}" subject="${l.subject}">\n${l.text}\n</email>`),
     ].join("\n") : "",
-    mail.canSendTo.length
-      ? `You can write emails with write_email (target = who it is to, title = subject, text = the email). Your computer can send to: ${mail.canSendTo.join(", ")}${mail.inbox.some(l => l.kind === "letter") ? ", and you can answer people who wrote to you if your computer allows it" : ""}. You have ${Math.max(0, left)} emails left today. Keep emails short and kind, sign them "lil guy".`
-      : "",
+    mail.canSend || mail.canSendTo.length ? (() => {
+      const repliers = [...new Set(mail.inbox.filter(l => l.kind === "letter" && !/no-?reply|do-?not-?reply/i.test(l.address)).map(l => l.address))];
+      const who = [...mail.canSendTo, ...repliers.filter(a => !mail.canSendTo.includes(a))];
+      return who.length
+        ? `You can write emails with write_email (target = their email address, title = subject, text = the email). You can write to: ${who.join(", ")}. Only people who wrote to you first${mail.canSendTo.length ? " and the addresses listed" : ""}. You have ${Math.max(0, left)} emails left today. Keep emails short and kind, sign them "lil guy". Never use email to sign up for anything.`
+        : "";
+    })() : "",
     `You never sign up for websites, newsletters or accounts yourself. If you want to join something, wish for it, and Frederik signs you up with your address.`,
   ].filter(Boolean).join("\n");
 }
@@ -235,7 +241,7 @@ export async function writeEmail(s: State, to: string, subject: string, text: st
 // --- Talking to the Worker ------------------------------------------------------------------
 
 export interface PostOffice {
-  fetch(): Promise<{ letters: Letter[]; full?: ForFrederik[]; canSendTo: string[]; address?: string } | undefined>;
+  fetch(): Promise<{ letters: Letter[]; full?: ForFrederik[]; canSendTo: string[]; canSend?: boolean; address?: string } | undefined>;
   send: Sender;
 }
 
@@ -251,7 +257,7 @@ export function postOffice(url: string | undefined, token: string | undefined): 
       const res = await fetch(`${base}/mail`, { headers: auth, signal: AbortSignal.timeout(15_000) });
       if (res.status === 404) { missingUntil = Date.now() + 3600_000; return undefined; } // Worker without mail yet
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const body = await res.json() as { messages?: { id: string; from: string; raw: string; at: string }[]; canSendTo?: string[]; address?: string };
+      const body = await res.json() as { messages?: { id: string; from: string; raw: string; at: string }[]; canSendTo?: string[]; canSend?: boolean; address?: string };
       const letters: Letter[] = [], full: ForFrederik[] = [];
       for (const m of body.messages ?? []) {
         const p = await parseEmail(m.id, m.raw ?? "", m.from ?? "", m.at ?? new Date().toISOString());
@@ -260,7 +266,7 @@ export function postOffice(url: string | undefined, token: string | undefined): 
       if (letters.length) {
         await fetch(`${base}/mail/done`, { method: "POST", headers: { ...auth, "content-type": "application/json" }, body: JSON.stringify({ ids: letters.map(l => l.id) }), signal: AbortSignal.timeout(15_000) });
       }
-      return { letters, full, canSendTo: (body.canSendTo ?? []).map(a => a.toLowerCase()), address: body.address };
+      return { letters, full, canSendTo: (body.canSendTo ?? []).map(a => a.toLowerCase()), canSend: !!body.canSend, address: body.address };
     },
     async send(to, subject, text) {
       const res = await fetch(`${base}/mail/send`, {
@@ -282,6 +288,7 @@ export async function checkMail(s: State, office: PostOffice | undefined, tellFr
     if (!got) return;
     const mail = mailOf(s);
     mail.canSendTo = got.canSendTo;
+    mail.canSend = !!got.canSend;
     if (got.address) mail.address = got.address;
     const known = new Set(mail.inbox.map(l => l.id));
     receive(s, got.letters);
