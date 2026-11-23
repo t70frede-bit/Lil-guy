@@ -18,7 +18,7 @@ A very small creature who lives on a server, gets bored, lonely and feisty on hi
   - He proposes a project with a small plan (2 to 8 steps). Code, not AI, works out the token estimate (with a 20% margin) and the price in DKK.
   - The wishmaster sends it to Telegram with **Approve** and **Not now**. Nothing starts before Frederik says yes, and a project must come from a real need.
   - An approved project can never use more tokens than approved. If it runs out, it stops and asks for more (**Give more** / **Stop it**).
-  - One project at a time. A finished friend design moves into his world straight away (src/friends.ts): its kind, colours and little extras come from his own words, and it lives where he said (the windowsill, by the big stone...). He can visit, listen to and sit with his friends. Friends do not have their own mind (yet).
+  - One project at a time. A finished friend design moves into his world straight away (src/friends.ts): its kind, colours and little extras come from his own words, and it lives where he said (the windowsill, by the big stone...). He can visit, listen to and sit with his friends. Lil guy decides whether a friend has a mind of their own (src/mind.ts): if so, the wishmaster asks Frederik to approve a monthly token allowance (code-made estimate, hard cap); the friend then thinks every 20 minutes while he is awake and now and then says something to him.
 - **Limits**: at most 12 messages to Frederik a day; `/pause` stops him instantly.
 
 Character sheet: `src/character.ts`. Places and moves: `src/world.ts`.

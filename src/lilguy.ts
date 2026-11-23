@@ -14,6 +14,7 @@ import { addTheory, applyPick, applyReflection, nameOf, needsReflection, treasur
 import { objectsOf } from "./world.js";
 import { today } from "./wonder.js";
 import { moveIn, moveInFinished, SPOT_WORDS, type Friend } from "./friends.js";
+import { canAfford, due, MIND_COOLDOWN_MS, newMind } from "./mind.js";
 
 export const MAX_MESSAGES_PER_DAY = 12;
 
@@ -28,6 +29,8 @@ export interface Outbox {
   propose(project: Project, why: string): Promise<void>;
   /** The wishmaster asks Frederik for more tokens so a project can be finished. */
   askMore(project: Project, more: { tokens: number; dkk: number }): Promise<void>;
+  /** The wishmaster asks Frederik to approve the monthly cost of a friend's own mind. */
+  askMind?(friend: Friend, why: string): Promise<void>;
 }
 
 function canMessage(s: State): boolean {
@@ -99,6 +102,7 @@ export async function step(s: State, brain: Brain, out: Outbox): Promise<void> {
   }
   if (decision.theory) addTheory(s, decision.theory.about, decision.theory.belief);
   if (decision.name_it) nameThing(s, decision.name_it.thing, decision.name_it.name);
+  await friendsThink(s, brain, out);
 
   const after = moodOf(s);
   if (after !== before) {
@@ -274,6 +278,17 @@ export async function doMove(s: State, move: Move & { reason?: string }, out: Ou
     case "wish": await wish(s, move, out); break;
     case "propose_project": await propose(s, move, brain, out); break;
     case "work_on_project": await work(s, brain, out); break;
+    case "give_friend_mind": {
+      const f = s.friends?.find(x => findObject(s, move.target)?.id === x.id);
+      if (!f) { note(s, `Wanted to give "${move.target}" a mind of their own, but that is not one of his friends.`); break; }
+      const like = (move.text ?? move.idea ?? move.reason ?? "").trim();
+      if (!like) { note(s, `Thought about giving ${f.name} a mind of their own, but has not worked out what it would be like yet.`); break; }
+      if (f.mind && f.mind.status !== "said no") { note(s, `${f.name} already ${f.mind.status === "waiting" ? "is waiting to hear about" : "has"} a mind of their own.`); break; }
+      if (f.mind && Date.now() - Date.parse(f.mind.decidedAt ?? f.mind.askedAt) < MIND_COOLDOWN_MS) { note(s, `Wanted to ask again about a mind for ${f.name}, but Frederik said not now only a little while ago.`); break; }
+      if (s.friends?.some(x => x.mind?.status === "waiting")) { note(s, "Wanted to give a friend a mind, but is still waiting to hear about the last one."); break; }
+      await askForMind(s, f, like, brain?.model ?? "", out);
+      break;
+    }
   }
 }
 
@@ -427,6 +442,8 @@ async function work(s: State, brain: Brain | undefined, out: Outbox) {
     const moved = p.kind === "friend" || p.friend ? moveIn(s, p) : undefined;
     if (moved) welcome(s, moved.friend, !moved.isNew);
     await out.inform(finishedMessage(p, brain.model, moved?.friend)); // always: a finished project is what Frederik paid for
+    // He designed them with a mind of their own: that runs on tokens, so Frederik approves its cost first.
+    if (moved && p.friend?.mind?.trim() && (!moved.friend.mind || moved.friend.mind.status === "said no")) await askForMind(s, moved.friend, p.friend.mind, brain.model, out);
   }
 }
 
@@ -534,3 +551,63 @@ export function asksForCompany(text: string): boolean {
     || /\b(i miss you|keep me company|come (over|by|visit)|visit me|spend time with me|are you there|i('| a)m (so |very )?lonely|i feel (so |very )?lonely)\b/.test(t)
     || /\bwant(s)? to hang ?out\b/.test(t);
 }
+
+// ---------- Friends with a mind of their own ----------
+
+/** Lil guy decided a friend has a mind of their own. It only starts thinking once Frederik approves the cost. */
+export async function askForMind(s: State, f: Friend, like: string, model: string, out: Outbox) {
+  f.mind = newMind(like, model);
+  note(s, `Decided that ${f.name} has a mind of their own: ${f.mind.like} The wishmaster asked Frederik about the cost.`);
+  highlight(s, "friend", `Decided that ${f.name} has a mind of their own.`);
+  await out.askMind?.(f, `He designed ${f.name} that way himself.`);
+}
+
+/** Frederik pressed Approve or Not now on a friend's mind. */
+export function resolveMind(s: State, friendId: string, approved: boolean): Friend | undefined {
+  const f = s.friends?.find(x => x.id === friendId && x.mind?.status === "waiting");
+  if (!f?.mind) return undefined;
+  const m = f.mind;
+  m.decidedAt = new Date().toISOString();
+  if (approved) {
+    m.status = "on"; m.monthly = m.estimate.tokens; m.used = 0; m.month = m.decidedAt.slice(0, 7);
+    s.needs = applyEffect(s.needs, { company: 0.2, fulfilled: 0.1 });
+    note(s, `Frederik said yes: ${f.name} has a mind of their own now!`);
+    highlight(s, "friend", `${f.name} woke up with a mind of their own!`);
+  } else {
+    m.status = "said no";
+    note(s, `Frederik said not now to a mind for ${f.name}.`);
+    highlight(s, "no", `Frederik said not now to a mind for ${f.name}.`);
+  }
+  return f;
+}
+
+/** Friends with a mind think now and then by themselves, within the tokens Frederik approved for the month. */
+export async function friendsThink(s: State, brain: Brain, out: Outbox) {
+  if (s.sleeping || !brain.friendThink) return;
+  for (const f of s.friends ?? []) {
+    const m = f.mind;
+    if (!m || !due(m)) continue;
+    m.lastAt = new Date().toISOString();
+    const rest = async () => {
+      m.status = "resting";
+      note(s, `${f.name}'s mind used all of this month's thinking and is resting until next month.`);
+      await out.inform(`${f.name}'s own mind used the ${m.monthly.toLocaleString("da-DK")} tokens you approved for this month (about ${kr(m.spentDkk)} so far in total). It rests until next month and then starts again by itself.`);
+    };
+    if (!canAfford(m)) { await rest(); continue; }
+    let res;
+    try { res = await brain.friendThink(s, f, m.monthly - m.used); }
+    catch (e) { note(s, `${f.name} seemed lost in thought (${(e as Error).message}).`); continue; }
+    if (res === "over budget") { await rest(); continue; }
+    m.used += res.tokens;
+    m.spentDkk += res.dkk;
+    if (res.thought) m.thought = res.thought.slice(0, 200);
+    const say = res.say?.trim().slice(0, 200);
+    if (say) {
+      m.said = { at: new Date().toISOString(), text: say };
+      const near = findObject(s, s.place)?.area === findObject(s, f.id)?.area;
+      if (near) s.needs = applyEffect(s.needs, { company: 0.05 });
+      note(s, `${f.name} said${near ? "" : " (from far away)"}: "${say}"`);
+    }
+  }
+}
+

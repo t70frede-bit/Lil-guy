@@ -720,11 +720,22 @@
       const key = JSON.stringify([f.look, f.kind, f.spot, i]);
       let th = things[f.id];
       if (th && th.friendKey !== key) { scene.remove(th.group); delete things[f.id]; th = null; } // he redesigned them
-      if (th) return;
-      const def = { id: f.id, name: f.name, kind: 'friend', state: 'lives ' + sp.words, desc: f.desc + ' A friend he designed himself.', actions: friendVerbs(f), area: sp.area, friend: f };
-      th = addThing(def, sp.pos[0], sp.pos[1], sp.stand);
-      th.group.position.y = sp.y; th.friendKey = key;
-      if (!reduce && !first) { th.popIn = 0; react('wiggle', 1800); showSymbol('heart', 3500); chirp('happy'); }
+      const m = f.mind;
+      const state = 'Lives ' + sp.words + (m ? (m.status === 'on' ? ', thinks for themselves' : m.status === 'resting' ? ', mind resting until next month' : m.status === 'waiting' ? ', a mind is on its way' : '') : '');
+      const desc = f.desc + ' A friend he designed himself.' + (m && (m.status === 'on' || m.status === 'resting') ? ' Has a mind of their own: ' + m.like + (m.thought ? ' Thinking: \u201c' + m.thought + '\u201d' : '') : '');
+      if (!th) {
+        const def = { id: f.id, name: f.name, kind: 'friend', state, desc, actions: friendVerbs(f), area: sp.area, friend: f };
+        th = addThing(def, sp.pos[0], sp.pos[1], sp.stand);
+        th.group.position.y = sp.y; th.friendKey = key;
+        if (!reduce && !first) { th.popIn = 0; react('wiggle', 1800); showSymbol('heart', 3500); chirp('happy'); }
+      }
+      th.def.state = state; th.def.desc = desc;
+      // something they said by themselves: show it, and they sing (or click, or buzz) a little
+      const said = m && m.said;
+      if (said && said.at !== th.lastSaid) {
+        if (th.lastSaid !== undefined || !first) { toast(f.name + ': \u201c' + said.text + '\u201d'); const u = th.group.userData.friend; if (u) u.sing = 3; }
+        th.lastSaid = said.at;
+      } else if (th.lastSaid === undefined) th.lastSaid = said ? said.at : null;
     });
   }
 
