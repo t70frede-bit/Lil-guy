@@ -154,3 +154,31 @@ test("Frederik sees every new email in full on Telegram, once, links included", 
   assert.match(told[0], /account mail/);
   assert.ok(!JSON.stringify(s).includes("stripe.com/confirm"), "the link never lands in his state");
 });
+
+test("his computer keeps his chats and emails privately, never on the public page", async () => {
+  const { remember } = await import("../src/state.js");
+  const { privateBody } = await import("../src/publish.js");
+  const s = freshState();
+  s.privateKey = "k".repeat(32);
+  remember(s, "frederik", "How is the plant?");
+  remember(s, "lil guy", "Sprout grew a new leaf.");
+  const office: PostOffice = {
+    fetch: async () => {
+      const { parseEmail } = await import("../src/email.js");
+      const a = await parseEmail("mail:10", raw("mia@example.org", "Rain", "Do you like rain? https://example.org/rain"), "mia@example.org", "2026-11-23T10:00:00Z");
+      const b = await parseEmail("mail:11", raw("Stripe <support@stripe.com>", "Your code 123456", "Code 123456"), "support@stripe.com", "2026-11-23T10:01:00Z");
+      return { letters: [a.letter, b.letter], full: [a.full, b.full], canSendTo: ["frederik@example.com"] };
+    },
+    send: async () => ({ ok: true }),
+  };
+  await checkMail(s, office);
+  await doMove(s, { type: "write_email", target: "frederik@example.com", title: "A leaf", text: "Sprout has a new leaf." }, recorder().out);
+  assert.deepEqual(s.log!.map(l => `${l.kind}:${l.dir}`), ["chat:in", "chat:out", "mail:in", "mail:in", "mail:out"]);
+  assert.match(s.log![2].text, /example\.org\/rain/, "Frederik sees the whole letter");
+  assert.ok(!JSON.stringify(s.log).includes("123456"), "account mail stays hidden");
+  const body = JSON.parse(privateBody(s)!);
+  assert.match(body.keyHash, /^[0-9a-f]{64}$/);
+  assert.ok(!JSON.stringify(body).includes(s.privateKey!), "only the hash leaves the server");
+  const page = JSON.stringify(snapshot(s, 180));
+  for (const secret of ["plant", "Sprout grew", "Rain", "frederik@example.com", s.privateKey!]) assert.ok(!page.includes(secret), secret);
+});

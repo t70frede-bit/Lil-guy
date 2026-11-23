@@ -7,7 +7,8 @@ import { SPOT_WORDS } from "./friends.js";
 import { kr } from "./workshop.js";
 import { checkComputer, leaveOnScreen, sitAtComputer, viaComputer } from "./computer.js";
 import { describe, shape } from "./needs.js";
-import { publish, publishAssets } from "./publish.js";
+import { privateLive, publish, publishAssets, publishPrivate } from "./publish.js";
+import { randomBytes } from "node:crypto";
 import { checkMail, postOffice } from "./email.js";
 import { load, moodOf, note, remember, save, type State } from "./state.js";
 import { Telegram } from "./telegram.js";
@@ -27,6 +28,10 @@ const brain: Brain = env.ANTHROPIC_API_KEY && env.DRY_RUN !== "1" ? new ClaudeBr
 const tg = env.TELEGRAM_BOT_TOKEN ? new Telegram(env.TELEGRAM_BOT_TOKEN) : undefined;
 const s: State = load(DATA);
 if (OWNER) s.ownerChatId = OWNER;
+// Frederik's secret key for the private Computer panel on his page (chats and emails).
+if (!s.privateKey) { s.privateKey = randomBytes(24).toString("base64url"); save(DATA, s); }
+const computerLink = () => `${WORLD_URL.replace(/\/$/, "")}/#computer=${s.privateKey}`;
+const COMPUTER_HELP = () => `Wishmaster: This is your private link to lil guy's computer: his chats with you and the emails he sends and gets. Open it once on your phone, and a Computer button appears on his page there. Do not share it.\n${computerLink()}\n\nSend /computer to get it again, or /newlink to make a new one (the old one stops working).`;
 // Frederik gave him a workshop for his own projects (2026-11-21).
 if (ensureWorkshop(s)) save(DATA, s);
 
@@ -120,7 +125,7 @@ async function handleText(chatId: number, text: string) {
   if (!s.ownerChatId && text.startsWith("/start")) {
     s.ownerChatId = chatId;
     note(s, "Met Frederik for the first time.");
-    await send("Wishmaster: Hello Frederik. Lil guy now knows how to reach you. Commands: /status, /diary, /projects, /me, /pause, /resume.");
+    await send("Wishmaster: Hello Frederik. Lil guy now knows how to reach you. Commands: /status, /diary, /projects, /me, /computer, /pause, /resume.");
     return;
   }
   if (chatId !== s.ownerChatId) return; // only Frederik can talk to him
@@ -128,6 +133,8 @@ async function handleText(chatId: number, text: string) {
   if (text === "/diary") return send(s.diary.slice(-10).map(d => `${d.at.slice(11, 16)} ${d.text}`).join("\n") || "Nothing yet.");
   if (text === "/projects") return send(projects());
   if (text === "/me") return send(aboutHim());
+  if (text === "/computer") return send(COMPUTER_HELP());
+  if (text === "/newlink") { s.privateKey = randomBytes(24).toString("base64url"); save(DATA, s); return send(COMPUTER_HELP()); }
   if (text === "/pause") { s.paused = true; note(s, "Frederik paused him."); return send("Wishmaster: Lil guy is paused. /resume to wake him."); }
   if (text === "/resume") { s.paused = false; note(s, "Frederik resumed him."); return send("Wishmaster: Lil guy is running again."); }
   if (text.startsWith("/")) return;
@@ -204,6 +211,9 @@ async function lifeLoop() {
     save(DATA, s);
     await publish(s, WORLD_URL, WORLD_TOKEN, TICK_SECONDS);
     await publishAssets(WORLD_URL, WORLD_TOKEN);
+    await publishPrivate(s, WORLD_URL, WORLD_TOKEN);
+    // The first time the page can show it: give Frederik his private link.
+    if (privateLive && !s.privateLinkSent && s.ownerChatId) { s.privateLinkSent = true; save(DATA, s); await send(COMPUTER_HELP()); }
     await new Promise(r => setTimeout(r, TICK_SECONDS * 1000));
   }
 }

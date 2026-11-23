@@ -2,6 +2,7 @@
 // Only what the page needs: no chat with Frederik, no Telegram details.
 
 import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { shape } from "./needs.js";
 import { findObject } from "./world.js";
 import { publicSelf } from "./self.js";
@@ -115,5 +116,40 @@ export async function publishAssets(url: string | undefined, token: string | und
     console.log("World page files updated.");
   } catch (e) {
     console.error(`Could not update the world page files: ${(e as Error).message}`);
+  }
+}
+
+const MAX_PRIVATE_BYTES = 480 * 1024;
+let privateSent = "";
+let privateFailing = false;
+/** True once the Worker has taken his private history, so the link actually works. */
+export let privateLive = false;
+
+/** What the private Computer panel shows: his history, trimmed to fit. Only Frederik's key opens it. */
+export function privateBody(s: State): string | undefined {
+  if (!s.privateKey) return undefined;
+  const keyHash = createHash("sha256").update(s.privateKey).digest("hex");
+  const log = (s.log ?? []).slice(-200);
+  let body = JSON.stringify({ keyHash, log });
+  while (body.length > MAX_PRIVATE_BYTES && log.length) { log.shift(); body = JSON.stringify({ keyHash, log }); }
+  return body;
+}
+
+/** Send his private history to the Worker when it changed. */
+export async function publishPrivate(s: State, url: string | undefined, token: string | undefined) {
+  const body = privateBody(s);
+  if (!url || !token || !body || body === privateSent) return;
+  try {
+    const res = await fetch(`${url.replace(/\/$/, "")}/private`, {
+      method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body, signal: AbortSignal.timeout(15_000),
+    });
+    if (res.status === 404) { privateSent = body; return; } // the Worker does not take it yet; try again when something changes
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    privateSent = body;
+    privateLive = true;
+    privateFailing = false;
+  } catch (e) {
+    if (!privateFailing) console.error(`Could not update his private computer page: ${(e as Error).message}`);
+    privateFailing = true;
   }
 }

@@ -31,6 +31,67 @@
   document.querySelectorAll('.panel .close').forEach(b => b.addEventListener('click', () => show(openPanel)));
   addEventListener('keydown', e => { if (e.key === 'Escape' && openPanel) show(openPanel); });
 
+  // ---------- His computer (private) ----------
+  // Frederik's private link (/#computer=KEY) is remembered on this device only, and the hash is wiped
+  // from the address bar. The key opens /private on the Worker; nobody without it sees anything.
+  let computerKey = null;
+  try {
+    const m = location.hash.match(/computer=([A-Za-z0-9_-]{20,})/);
+    if (m) { localStorage.setItem('lilguyComputer', m[1]); history.replaceState(null, '', location.pathname + location.search); }
+    computerKey = localStorage.getItem('lilguyComputer');
+  } catch (e) { const m = location.hash.match(/computer=([A-Za-z0-9_-]{20,})/); computerKey = m ? m[1] : null; }
+  if (computerKey) {
+    const btn = $('computerBtn'), list = $('logList');
+    let filter = 'all', log = [], loadTimer = 0;
+    btn.hidden = false;
+    const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+    const dayOf = iso => new Date(iso).toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' });
+    function render() {
+      const items = log.filter(x => filter === 'all' || x.kind === filter);
+      list.replaceChildren();
+      if (!items.length) { list.append(el('li', 'empty', filter === 'mail' ? 'No emails yet.' : 'Nothing yet.')); return; }
+      let day = '';
+      for (const x of items.slice().reverse()) {
+        const d = dayOf(x.at);
+        if (d !== day) { day = d; list.append(el('li', 'day', d)); }
+        if (x.kind === 'chat') {
+          const li = el('li', 'msg ' + (x.dir === 'out' ? 'out' : 'in'));
+          li.append(el('span', '', (x.dir === 'out' ? 'Lil guy: ' : 'You: ') + x.text), el('time', '', hhmm(x.at)));
+          list.append(li);
+        } else {
+          const li = el('li', 'mail ' + (x.dir === 'out' ? 'out' : 'in'));
+          const det = el('details'), sum = el('summary');
+          sum.append(el('b', '', (x.dir === 'out' ? '📤 ' : '📧 ') + (x.account ? 'Account mail' : (x.subject || '(no subject)'))),
+            el('span', 'who', (x.dir === 'out' ? 'To ' : 'From ') + x.who), el('time', '', hhmm(x.at)));
+          det.append(sum, el('p', '', x.text));
+          li.append(det); list.append(li);
+        }
+      }
+    }
+    async function load() {
+      try {
+        const r = await fetch('/private', { headers: { 'x-key': computerKey }, cache: 'no-store' });
+        if (r.status === 403 || r.status === 404) { list.replaceChildren(el('li', 'empty', 'This link does not open his computer (yet). Send /computer to the bot for the newest link.')); return; }
+        if (!r.ok) throw new Error(String(r.status));
+        log = (await r.json()).log || [];
+        render();
+      } catch (e) { if (!log.length) list.replaceChildren(el('li', 'empty', 'Could not reach his computer just now.')); }
+    }
+    btn.addEventListener('click', () => {
+      clearInterval(loadTimer);
+      if (openPanel === 'computer') { load(); loadTimer = setInterval(() => { if (openPanel === 'computer' && !document.hidden) load(); }, 60000); }
+    });
+    document.querySelectorAll('[data-log]').forEach(b => b.addEventListener('click', () => {
+      filter = b.dataset.log;
+      document.querySelectorAll('[data-log]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+      render();
+    }));
+    $('forgetKey').addEventListener('click', () => {
+      try { localStorage.removeItem('lilguyComputer'); } catch (e) {}
+      computerKey = null; clearInterval(loadTimer); log = []; list.replaceChildren(); btn.hidden = true; show('computer');
+    });
+  }
+
   const toastEl = $('toast'); let toastTimer = 0;
   function toast(text) { toastEl.textContent = text; toastEl.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => toastEl.classList.remove('show'), 5000); }
   const bubble = $('bubble');
